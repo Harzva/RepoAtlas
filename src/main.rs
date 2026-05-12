@@ -889,7 +889,7 @@ fn find_git_roots(scan_roots: &[PathBuf], max_depth: usize) -> Vec<PathBuf> {
 
 fn should_skip_entry(entry: &DirEntry) -> bool {
     if entry.depth() == 0 {
-        return true;
+        return false;
     }
     let name = entry.file_name().to_string_lossy();
     !matches!(
