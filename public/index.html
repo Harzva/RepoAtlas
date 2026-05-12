@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Harzva Repo Atlas</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <aside class="side-rail" aria-label="仓库筛选">
+        <div class="brand-block">
+          <div class="brand-mark" aria-hidden="true">
+            <span></span><span></span><span></span><span></span>
+          </div>
+          <div>
+            <p class="eyebrow">Harzva</p>
+            <h1>Repo Atlas</h1>
+          </div>
+        </div>
+
+        <label class="search-box">
+          <span>搜索</span>
+          <input id="searchInput" type="search" placeholder="仓库 / 描述 / 路径" autocomplete="off" />
+        </label>
+
+        <section class="control-group" aria-label="同步状态">
+          <p class="control-title">状态</p>
+          <div class="segmented" id="statusFilters">
+            <button class="active" data-status="all" type="button">全部</button>
+            <button data-status="local" type="button">本地</button>
+            <button data-status="diverged" type="button">分叉</button>
+            <button data-status="behind" type="button">落后</button>
+            <button data-status="dirty" type="button">未提交</button>
+            <button data-status="no-local-copy" type="button">缺本地</button>
+          </div>
+        </section>
+
+        <section class="control-group" aria-label="可见性">
+          <p class="control-title">可见性</p>
+          <div class="segmented two" id="visibilityFilters">
+            <button class="active" data-visibility="all" type="button">全部</button>
+            <button data-visibility="public" type="button">公开</button>
+            <button data-visibility="private" type="button">私有</button>
+          </div>
+        </section>
+
+        <section class="control-group" aria-label="仓库来源">
+          <p class="control-title">来源</p>
+          <div class="segmented two" id="forkFilters">
+            <button class="active" data-fork="all" type="button">全部</button>
+            <button data-fork="source" type="button">源仓库</button>
+            <button data-fork="fork" type="button">Fork</button>
+          </div>
+        </section>
+
+        <label class="select-box">
+          <span>排序</span>
+          <select id="sortSelect">
+            <option value="pushed-desc">最近推送</option>
+            <option value="name-asc">名称</option>
+            <option value="status-asc">状态</option>
+            <option value="language-asc">语言</option>
+          </select>
+        </label>
+
+        <div class="report-links">
+          <a href="/reports/harzva-github-repos-full.csv">CSV</a>
+          <a href="/reports/harzva-github-repos-full.md">Markdown</a>
+          <a href="/reports/harzva-github-repos.json">JSON</a>
+        </div>
+      </aside>
+
+      <section class="workspace">
+        <header class="top-bar">
+          <div>
+            <p class="eyebrow" id="generatedAt">Inventory</p>
+            <h2>GitHub 仓库扫描台</h2>
+          </div>
+          <div class="top-actions">
+            <button class="icon-button" id="refreshButton" type="button" title="重新扫描" aria-label="重新扫描">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 0 1-13.7 5.7l-2 2V14h5.7l-2.3 2.3A6 6 0 1 0 6.1 9H4a8 8 0 0 1 16 3Zm-2.3-5.7 2-2V10H14V8h2.3A6 6 0 0 0 5.9 15H4A8 8 0 0 1 17.7 6.3Z"/></svg>
+            </button>
+          </div>
+        </header>
+
+        <section class="metrics-grid" id="metricsGrid" aria-label="仓库统计"></section>
+
+        <section class="matched-strip">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Local Matches</p>
+              <h3>本地匹配仓库</h3>
+            </div>
+            <span id="matchedCount" class="counter-pill">0</span>
+          </div>
+          <div class="matched-list" id="matchedList"></div>
+        </section>
+
+        <section class="content-grid">
+          <div class="repo-panel">
+            <div class="section-heading compact">
+              <div>
+                <p class="eyebrow">Remote Map</p>
+                <h3>远端仓库</h3>
+              </div>
+              <span id="resultCount" class="counter-pill">0</span>
+            </div>
+            <div class="repo-table" id="repoTable" role="table" aria-label="Harzva GitHub 仓库"></div>
+          </div>
+
+          <aside class="detail-panel" id="detailPanel" aria-label="仓库详情"></aside>
+        </section>
+
+        <section class="local-only-panel">
+          <div class="section-heading compact">
+            <div>
+              <p class="eyebrow">Local Only</p>
+              <h3>非 Harzva 匹配本地仓库</h3>
+            </div>
+            <span id="localOnlyCount" class="counter-pill">0</span>
+          </div>
+          <div class="local-list" id="localOnlyList"></div>
+        </section>
+      </section>
+    </main>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="/app.js"></script>
+  </body>
+</html>
