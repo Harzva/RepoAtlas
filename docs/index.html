@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Harzva Repo Atlas</title>
+    <meta
+      name="description"
+      content="Harzva Repo Atlas is a Windows desktop app for mapping GitHub repositories to local Git checkouts."
+    />
+    <style>
+      :root {
+        --ink: #111716;
+        --paper: #f5f6f1;
+        --panel: #ffffff;
+        --line: #d9ded7;
+        --teal: #0b7f77;
+        --amber: #f0c04c;
+        --red: #c9382a;
+        --blue: #245b9f;
+        --green: #236b3f;
+        --charcoal: #19201f;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        color: var(--ink);
+        background: var(--paper);
+        font-family: "Aptos", "Segoe UI", sans-serif;
+      }
+
+      a {
+        color: inherit;
+      }
+
+      .hero {
+        position: relative;
+        display: grid;
+        align-content: end;
+        min-height: 88vh;
+        padding: 28px;
+        color: #fff;
+        overflow: hidden;
+        background:
+          linear-gradient(90deg, rgba(17, 23, 22, 0.94) 0%, rgba(17, 23, 22, 0.76) 42%, rgba(17, 23, 22, 0.18) 100%),
+          url("./assets/dashboard-screenshot.png") center / cover no-repeat;
+      }
+
+      .hero::after {
+        content: "";
+        position: absolute;
+        inset: auto 0 0;
+        height: 22vh;
+        background: linear-gradient(180deg, transparent, var(--paper));
+        pointer-events: none;
+      }
+
+      .nav {
+        position: absolute;
+        top: 22px;
+        left: 28px;
+        right: 28px;
+        z-index: 1;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .mark {
+        display: inline-grid;
+        grid-template-columns: repeat(2, 16px);
+        gap: 4px;
+        margin-right: 10px;
+        vertical-align: middle;
+      }
+
+      .mark span {
+        display: block;
+        width: 16px;
+        height: 16px;
+        background: #fff;
+        border: 1px solid rgba(255, 255, 255, 0.65);
+      }
+
+      .mark span:nth-child(2) {
+        background: var(--amber);
+      }
+
+      .mark span:nth-child(3) {
+        background: #36b2a9;
+      }
+
+      .mark span:nth-child(4) {
+        background: #e65a45;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        font: 800 15px/1 "Bahnschrift", "Segoe UI", sans-serif;
+      }
+
+      .nav-links {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .nav-links a,
+      .button {
+        display: inline-flex;
+        align-items: center;
+        min-height: 38px;
+        padding: 9px 13px;
+        border: 1px solid rgba(255, 255, 255, 0.28);
+        border-radius: 6px;
+        text-decoration: none;
+        font-weight: 800;
+      }
+
+      .nav-links a:hover,
+      .button:hover {
+        background: rgba(255, 255, 255, 0.12);
+      }
+
+      .hero-copy {
+        position: relative;
+        z-index: 1;
+        max-width: 760px;
+        padding-bottom: 8vh;
+      }
+
+      .eyebrow {
+        margin: 0 0 12px;
+        color: var(--amber);
+        font: 800 12px/1 "Cascadia Code", "Consolas", monospace;
+        letter-spacing: 0;
+        text-transform: uppercase;
+      }
+
+      h1,
+      h2,
+      h3 {
+        margin: 0;
+        font-family: "Bahnschrift", "Aptos Display", "Segoe UI", sans-serif;
+        letter-spacing: 0;
+      }
+
+      h1 {
+        max-width: 680px;
+        font-size: clamp(44px, 8vw, 96px);
+        line-height: 0.94;
+      }
+
+      .lead {
+        max-width: 640px;
+        margin: 18px 0 0;
+        color: rgba(255, 255, 255, 0.86);
+        font-size: 19px;
+        line-height: 1.58;
+      }
+
+      .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 26px;
+      }
+
+      .button.primary {
+        color: #111716;
+        background: var(--amber);
+        border-color: var(--amber);
+      }
+
+      .page-section {
+        padding: 64px 28px;
+      }
+
+      .inner {
+        width: min(1120px, 100%);
+        margin: 0 auto;
+      }
+
+      .section-title {
+        display: grid;
+        grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+        gap: 36px;
+        align-items: start;
+        margin-bottom: 28px;
+      }
+
+      h2 {
+        font-size: clamp(30px, 4vw, 54px);
+        line-height: 1;
+      }
+
+      .section-title p {
+        margin: 0;
+        color: #52605b;
+        font-size: 17px;
+        line-height: 1.65;
+      }
+
+      .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .feature {
+        min-height: 176px;
+        padding: 18px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-top: 4px solid var(--teal);
+        border-radius: 8px;
+        box-shadow: 0 10px 30px rgba(17, 23, 22, 0.08);
+      }
+
+      .feature:nth-child(2) {
+        border-top-color: var(--blue);
+      }
+
+      .feature:nth-child(3) {
+        border-top-color: var(--red);
+      }
+
+      .feature:nth-child(4) {
+        border-top-color: var(--green);
+      }
+
+      .feature h3 {
+        font-size: 19px;
+      }
+
+      .feature p {
+        margin: 10px 0 0;
+        color: #52605b;
+        line-height: 1.55;
+      }
+
+      .preview {
+        display: block;
+        width: 100%;
+        margin-top: 18px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        box-shadow: 0 24px 70px rgba(17, 23, 22, 0.18);
+      }
+
+      .install-band {
+        color: #fff;
+        background: var(--charcoal);
+      }
+
+      .install-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(280px, 420px);
+        gap: 22px;
+        align-items: center;
+      }
+
+      .install-grid p {
+        color: rgba(255, 255, 255, 0.76);
+        line-height: 1.65;
+      }
+
+      code {
+        display: block;
+        padding: 16px;
+        overflow: auto;
+        color: #f8fbf8;
+        background: #0e1413;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 8px;
+        font-family: "Cascadia Code", "Consolas", monospace;
+      }
+
+      footer {
+        padding: 28px;
+        color: #52605b;
+        text-align: center;
+      }
+
+      @media (max-width: 840px) {
+        .hero {
+          min-height: 82vh;
+          padding: 20px;
+        }
+
+        .nav {
+          left: 20px;
+          right: 20px;
+          align-items: flex-start;
+        }
+
+        .section-title,
+        .install-grid,
+        .feature-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="hero">
+      <nav class="nav" aria-label="Primary">
+        <div class="brand">
+          <span class="mark" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
+          Harzva Repo Atlas
+        </div>
+        <div class="nav-links">
+          <a href="https://github.com/Harzva/harzva-repo-atlas">GitHub</a>
+          <a href="https://github.com/Harzva/harzva-repo-atlas/releases/latest">Release</a>
+        </div>
+      </nav>
+      <div class="hero-copy">
+        <p class="eyebrow">Desktop GitHub inventory</p>
+        <h1>Harzva Repo Atlas</h1>
+        <p class="lead">
+          A Windows desktop atlas for mapping Harzva GitHub repositories to local Git checkouts, spotting drift, and
+          opening the right project folder without hunting through directories.
+        </p>
+        <div class="hero-actions">
+          <a class="button primary" href="https://github.com/Harzva/harzva-repo-atlas/releases/latest">Download for Windows</a>
+          <a class="button" href="https://github.com/Harzva/harzva-repo-atlas#quick-start">Quick Start</a>
+        </div>
+      </div>
+    </header>
+
+    <section class="page-section">
+      <div class="inner">
+        <div class="section-title">
+          <h2>One place for remote repos and local reality.</h2>
+          <p>
+            Repo Atlas packages the cartography workflow into a desktop app: remote repository inventory, local Git
+            discovery, sync state comparison, private/public/fork filters, report exports, and safe folder opening.
+          </p>
+        </div>
+        <div class="feature-grid">
+          <article class="feature">
+            <h3>GitHub inventory</h3>
+            <p>Lists owned repositories through GitHub CLI, including visibility, language, default branch, and last push.</p>
+          </article>
+          <article class="feature">
+            <h3>Local matching</h3>
+            <p>Scans Git folders and maps remotes back to GitHub repository keys.</p>
+          </article>
+          <article class="feature">
+            <h3>Drift signals</h3>
+            <p>Highlights synced, behind, ahead, diverged, dirty, no-upstream, and missing-local states.</p>
+          </article>
+          <article class="feature">
+            <h3>Desktop actions</h3>
+            <p>Open matched local folders, copy clone URLs, export CSV/Markdown/JSON, and rescan from the app.</p>
+          </article>
+        </div>
+        <img class="preview" src="./assets/dashboard-screenshot.png" alt="Harzva Repo Atlas dashboard screenshot" />
+      </div>
+    </section>
+
+    <section class="page-section install-band">
+      <div class="inner install-grid">
+        <div>
+          <p class="eyebrow">Install</p>
+          <h2>Portable exe, no installer ceremony.</h2>
+          <p>
+            Download the release asset, run it, and sign in with GitHub CLI if you want live rescans. The bundled seed
+            inventory keeps the dashboard useful immediately.
+          </p>
+        </div>
+        <code>gh auth login
+git --version
+Harzva-Repo-Atlas-0.1.0-x64.exe</code>
+      </div>
+    </section>
+
+    <footer>
+      Built for the Harzva repository map. MIT licensed.
+    </footer>
+  </body>
+</html>
