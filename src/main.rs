@@ -64,7 +64,7 @@ fn main() -> wry::Result<()> {
     let _webview = WebViewBuilder::new()
         .with_url(&url)
         .with_new_window_req_handler(|url, _features| {
-            let _ = open_external_url(url);
+            let _ = open_external_url(&url);
             wry::NewWindowResponse::Deny
         })
         .build(&window)?;
@@ -689,7 +689,8 @@ fn scan_inventory(
 
 fn list_remote_repos(account: &str) -> Result<Vec<Value>> {
     let user = gh(account, &["api", "user", "--jq", ".login"])?;
-    let login = user.stdout.trim();
+    let login_text = String::from_utf8_lossy(&user.stdout).trim().to_string();
+    let login = login_text.as_str();
     let fields = "nameWithOwner,url,description,isPrivate,isArchived,isFork,primaryLanguage,pushedAt,updatedAt,defaultBranchRef";
     let repo_proc = gh_raw(
         account,
