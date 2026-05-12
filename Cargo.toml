@@ -1,0 +1,21 @@
+[package]
+name = "harzva-repo-atlas"
+version = "0.1.0"
+edition = "2021"
+authors = ["Harzva"]
+license = "MIT"
+description = "Rust desktop atlas for Harzva GitHub repositories and local Git checkouts."
+
+[dependencies]
+anyhow = "1.0"
+chrono = "0.4"
+include_dir = "0.7"
+serde_json = "1.0"
+tao = "0.35.2"
+walkdir = "2.5"
+wry = "0.55.1"
+
+[profile.release]
+codegen-units = 1
+lto = true
+strip = true
