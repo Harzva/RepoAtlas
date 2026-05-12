@@ -1,0 +1,9 @@
+node_modules/
+target/
+dist/
+*.log
+/dashboard-dom.html
+/dashboard-screenshot.png
+*.tmp
+.DS_Store
+Thumbs.db
