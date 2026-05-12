@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -7,125 +7,143 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <main class="app-shell">
-      <aside class="side-rail" aria-label="仓库筛选">
+    <div class="app-shell">
+      <aside class="side-rail" aria-label="Repository filters and scan controls">
         <div class="brand-block">
           <div class="brand-mark" aria-hidden="true">
-            <span></span><span></span><span></span><span></span>
+            <span></span>
+            <span></span>
+            <span></span>
+            <span></span>
           </div>
           <div>
-            <p class="eyebrow">Harzva</p>
+            <p class="eyebrow">Desktop inventory</p>
             <h1>Repo Atlas</h1>
           </div>
         </div>
 
         <label class="search-box">
-          <span>搜索</span>
-          <input id="searchInput" type="search" placeholder="仓库 / 描述 / 路径" autocomplete="off" />
+          <span>Search</span>
+          <input id="searchInput" type="search" placeholder="Repository, language, path" autocomplete="off" />
         </label>
 
-        <section class="control-group" aria-label="同步状态">
-          <p class="control-title">状态</p>
-          <div class="segmented" id="statusFilters">
-            <button class="active" data-status="all" type="button">全部</button>
-            <button data-status="local" type="button">本地</button>
-            <button data-status="diverged" type="button">分叉</button>
-            <button data-status="behind" type="button">落后</button>
-            <button data-status="dirty" type="button">未提交</button>
-            <button data-status="no-local-copy" type="button">缺本地</button>
+        <section class="control-group" aria-label="Status filter">
+          <p class="control-title">Status</p>
+          <div id="statusFilters" class="segmented">
+            <button class="active" type="button" data-status="all">All</button>
+            <button type="button" data-status="local">Local</button>
+            <button type="button" data-status="diverged">Diverged</button>
+            <button type="button" data-status="behind">Behind</button>
+            <button type="button" data-status="dirty">Dirty</button>
+            <button type="button" data-status="no-local-copy">Missing</button>
           </div>
         </section>
 
-        <section class="control-group" aria-label="可见性">
-          <p class="control-title">可见性</p>
-          <div class="segmented two" id="visibilityFilters">
-            <button class="active" data-visibility="all" type="button">全部</button>
-            <button data-visibility="public" type="button">公开</button>
-            <button data-visibility="private" type="button">私有</button>
+        <section class="control-group" aria-label="Visibility filter">
+          <p class="control-title">Visibility</p>
+          <div id="visibilityFilters" class="segmented two">
+            <button class="active" type="button" data-visibility="all">All</button>
+            <button type="button" data-visibility="public">Public</button>
+            <button type="button" data-visibility="private">Private</button>
           </div>
         </section>
 
-        <section class="control-group" aria-label="仓库来源">
-          <p class="control-title">来源</p>
-          <div class="segmented two" id="forkFilters">
-            <button class="active" data-fork="all" type="button">全部</button>
-            <button data-fork="source" type="button">源仓库</button>
-            <button data-fork="fork" type="button">Fork</button>
+        <section class="control-group" aria-label="Source filter">
+          <p class="control-title">Source</p>
+          <div id="forkFilters" class="segmented two">
+            <button class="active" type="button" data-fork="all">All</button>
+            <button type="button" data-fork="source">Source</button>
+            <button type="button" data-fork="fork">Fork</button>
           </div>
         </section>
 
         <label class="select-box">
-          <span>排序</span>
+          <span>Sort</span>
           <select id="sortSelect">
-            <option value="pushed-desc">最近推送</option>
-            <option value="name-asc">名称</option>
-            <option value="status-asc">状态</option>
-            <option value="language-asc">语言</option>
+            <option value="pushed-desc">Last pushed</option>
+            <option value="name-asc">Name A-Z</option>
+            <option value="status-asc">Status</option>
+            <option value="language-asc">Language</option>
           </select>
         </label>
 
-        <div class="report-links">
-          <a href="/reports/harzva-github-repos-full.csv">CSV</a>
-          <a href="/reports/harzva-github-repos-full.md">Markdown</a>
-          <a href="/reports/harzva-github-repos.json">JSON</a>
-        </div>
+        <section class="control-group scan-controls" aria-label="Scan options">
+          <p class="control-title">Scan</p>
+          <label class="scan-box">
+            <span>Roots</span>
+            <textarea id="scanRootsInput" rows="4" spellcheck="false" placeholder="D:\study\code"></textarea>
+          </label>
+          <div class="scan-row">
+            <label class="toggle-row">
+              <input id="fetchToggle" type="checkbox" checked />
+              <span>Fetch remotes</span>
+            </label>
+            <label class="depth-box">
+              <span>Depth</span>
+              <input id="maxDepthInput" type="number" min="1" max="30" step="1" value="10" />
+            </label>
+          </div>
+        </section>
+
+        <nav class="report-links" aria-label="Reports">
+          <a href="/reports/harzva-github-repos.json" target="_blank" rel="noreferrer">JSON</a>
+          <a href="/reports/harzva-github-repos-full.csv" target="_blank" rel="noreferrer">CSV</a>
+          <a href="/reports/harzva-github-repos-full.md" target="_blank" rel="noreferrer">MD</a>
+        </nav>
       </aside>
 
-      <section class="workspace">
+      <main class="workspace">
         <header class="top-bar">
           <div>
-            <p class="eyebrow" id="generatedAt">Inventory</p>
-            <h2>GitHub 仓库扫描台</h2>
+            <p id="generatedAt" class="eyebrow">Inventory</p>
+            <h2>GitHub Repository Atlas</h2>
           </div>
           <div class="top-actions">
-            <button class="icon-button" id="refreshButton" type="button" title="重新扫描" aria-label="重新扫描">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 0 1-13.7 5.7l-2 2V14h5.7l-2.3 2.3A6 6 0 1 0 6.1 9H4a8 8 0 0 1 16 3Zm-2.3-5.7 2-2V10H14V8h2.3A6 6 0 0 0 5.9 15H4A8 8 0 0 1 17.7 6.3Z"/></svg>
+            <button id="refreshButton" class="icon-button" type="button" title="Refresh inventory" aria-label="Refresh inventory">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M20 6v5h-5l1.9-1.9A6.5 6.5 0 0 0 5.8 12H3.7A8.5 8.5 0 0 1 18.3 7.7L20 6Zm-1.8 6A6.5 6.5 0 0 1 7.1 16.9L5.2 18.8H10v2H2v-8h2v4.6l1.7-1.7A8.5 8.5 0 0 0 20.3 12h-2.1Z"
+                />
+              </svg>
             </button>
           </div>
         </header>
 
-        <section class="metrics-grid" id="metricsGrid" aria-label="仓库统计"></section>
+        <section id="metricsGrid" class="metrics-grid" aria-label="Inventory metrics"></section>
 
-        <section class="matched-strip">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Local Matches</p>
-              <h3>本地匹配仓库</h3>
-            </div>
+        <section class="matched-strip" aria-labelledby="matchedHeading">
+          <div class="section-heading compact">
+            <h3 id="matchedHeading">Local matches</h3>
             <span id="matchedCount" class="counter-pill">0</span>
           </div>
-          <div class="matched-list" id="matchedList"></div>
+          <div id="matchedList" class="matched-list"></div>
         </section>
 
-        <section class="content-grid">
-          <div class="repo-panel">
+        <div class="content-grid">
+          <section class="repo-panel" aria-labelledby="repoHeading">
             <div class="section-heading compact">
-              <div>
-                <p class="eyebrow">Remote Map</p>
-                <h3>远端仓库</h3>
-              </div>
+              <h3 id="repoHeading">Remote repositories</h3>
               <span id="resultCount" class="counter-pill">0</span>
             </div>
-            <div class="repo-table" id="repoTable" role="table" aria-label="Harzva GitHub 仓库"></div>
-          </div>
+            <div id="repoTable" class="repo-table" role="table" aria-label="Remote repositories"></div>
+          </section>
 
-          <aside class="detail-panel" id="detailPanel" aria-label="仓库详情"></aside>
-        </section>
+          <aside id="detailPanel" class="detail-panel" aria-label="Repository details">
+            <div class="detail-empty">Choose a repository</div>
+          </aside>
+        </div>
 
-        <section class="local-only-panel">
+        <section class="local-only-panel" aria-labelledby="localOnlyHeading">
           <div class="section-heading compact">
-            <div>
-              <p class="eyebrow">Local Only</p>
-              <h3>非 Harzva 匹配本地仓库</h3>
-            </div>
+            <h3 id="localOnlyHeading">Local-only Git folders</h3>
             <span id="localOnlyCount" class="counter-pill">0</span>
           </div>
-          <div class="local-list" id="localOnlyList"></div>
+          <div id="localOnlyList" class="local-list"></div>
         </section>
-      </section>
-    </main>
+      </main>
+    </div>
 
-    <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="/app.js"></script>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script src="/app.js" defer></script>
   </body>
 </html>

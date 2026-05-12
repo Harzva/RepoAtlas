@@ -38,7 +38,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -134,7 +135,9 @@ h3 {
 }
 
 .search-box,
-.select-box {
+.select-box,
+.scan-box,
+.depth-box {
   display: grid;
   gap: 8px;
   margin-bottom: 20px;
@@ -144,7 +147,9 @@ h3 {
 }
 
 .search-box input,
-.select-box select {
+.select-box select,
+.scan-box textarea,
+.depth-box input {
   width: 100%;
   min-height: 42px;
   padding: 10px 12px;
@@ -156,9 +161,63 @@ h3 {
 }
 
 .search-box input:focus,
-.select-box select:focus {
+.select-box select:focus,
+.scan-box textarea:focus,
+.depth-box input:focus {
   border-color: #36b2a9;
   box-shadow: 0 0 0 3px rgba(54, 178, 169, 0.18);
+}
+
+.scan-controls {
+  padding: 12px;
+  background: rgba(247, 251, 248, 0.05);
+  border: 1px solid rgba(247, 251, 248, 0.13);
+  border-radius: 8px;
+}
+
+.scan-box {
+  margin-bottom: 10px;
+}
+
+.scan-box textarea {
+  min-height: 92px;
+  resize: vertical;
+}
+
+.scan-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 78px;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 9px 10px;
+  color: rgba(247, 251, 248, 0.78);
+  background: #0e1413;
+  border: 1px solid rgba(247, 251, 248, 0.22);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.toggle-row input {
+  width: 16px;
+  height: 16px;
+  accent-color: #f0c04c;
+}
+
+.depth-box {
+  margin-bottom: 0;
+}
+
+.depth-box input {
+  padding-inline: 8px;
+  text-align: center;
 }
 
 .control-group {
@@ -343,6 +402,21 @@ h3 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   margin-top: 14px;
+}
+
+.empty-line {
+  min-height: 54px;
+  display: grid;
+  align-items: center;
+  padding: 10px;
+  color: var(--muted);
+  background: #fbfcf8;
+  border: 1px dashed var(--line-strong);
+  border-radius: 6px;
+}
+
+.small-empty {
+  min-height: 120px;
 }
 
 .matched-card {

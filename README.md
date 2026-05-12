@@ -5,6 +5,7 @@
 **用 Rust 桌面应用把 Harzva 的 GitHub 仓库、本地 Git 副本和同步状态放到一张可操作地图里。**
 
 [![Release](https://img.shields.io/github/v/release/Harzva/harzva-repo-atlas?label=release)](https://github.com/Harzva/harzva-repo-atlas/releases/latest)
+[![CI](https://github.com/Harzva/harzva-repo-atlas/actions/workflows/ci.yml/badge.svg)](https://github.com/Harzva/harzva-repo-atlas/actions/workflows/ci.yml)
 [![Windows](https://img.shields.io/badge/platform-Windows-245b9f)](https://github.com/Harzva/harzva-repo-atlas/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-236b3f.svg)](LICENSE)
 [![GitHub Pages](https://img.shields.io/badge/site-GitHub%20Pages-0b7f77)](https://harzva.github.io/harzva-repo-atlas/)
@@ -36,7 +37,7 @@ Harzva 账号下仓库越来越多，很多项目在本地又有多个实验副�
 - **本地 Git 映射**：扫描本地目录，按 `github.com/owner/repo` remote 匹配远端仓库。
 - **同步状态检测**：支持 `synced`、`behind`、`ahead`、`diverged`、`no-upstream`、`dirty`、`no-local-copy`。
 - **桌面管理动作**：打开本地目录、复制 clone URL、复制路径、跳转 GitHub。
-- **内置刷新**：Rust 应用内可重新扫描 GitHub 与本地 Git 状态。
+- **可配置刷新**：Rust 应用内可设置扫描根目录、扫描深度和是否执行 `git fetch`。
 - **报告导出**：动态生成 CSV、Markdown 和 JSON。
 
 ## Quick Start
@@ -44,7 +45,7 @@ Harzva 账号下仓库越来越多，很多项目在本地又有多个实验副�
 ### Download exe
 
 1. 打开 [Latest Release](https://github.com/Harzva/harzva-repo-atlas/releases/latest)。
-2. 下载 `Harzva Repo Atlas-0.1.0-x64.exe`。
+2. 下载 `Harzva-Repo-Atlas-v0.1.1-x64.exe`。
 3. 双击运行。
 
 > Live rescan requires `git` and GitHub CLI `gh`. The app ships with a seed inventory, so the dashboard opens even before rescanning.
@@ -123,7 +124,8 @@ The bundled seed snapshot contains:
 
 ## Release Checklist
 
-- `cargo build --release`
+- CI：`cargo fmt --all -- --check`、`cargo check --locked`、`node --check public/app.js`
+- Release：`cargo build --release`
 - Push `v*` tag to let GitHub Actions upload the Windows exe
 - Publish GitHub Pages from `/docs` through the Pages workflow
 - Keep `data/harzva-github-repos.json` free of tokens and credentials

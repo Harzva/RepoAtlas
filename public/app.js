@@ -13,14 +13,14 @@ const state = {
 };
 
 const labels = {
-  "no-local-copy": "缺本地",
-  "no-upstream": "无 upstream",
-  diverged: "分叉",
-  behind: "落后",
-  ahead: "超前",
-  synced: "同步",
-  dirty: "未提交",
-  unknown: "未知",
+  "no-local-copy": "Missing local",
+  "no-upstream": "No upstream",
+  diverged: "Diverged",
+  behind: "Behind",
+  ahead: "Ahead",
+  synced: "Synced",
+  dirty: "Dirty",
+  unknown: "Unknown",
 };
 
 const icons = {
@@ -40,6 +40,9 @@ const elements = {
   visibilityFilters: document.querySelector("#visibilityFilters"),
   forkFilters: document.querySelector("#forkFilters"),
   sortSelect: document.querySelector("#sortSelect"),
+  scanRootsInput: document.querySelector("#scanRootsInput"),
+  fetchToggle: document.querySelector("#fetchToggle"),
+  maxDepthInput: document.querySelector("#maxDepthInput"),
   generatedAt: document.querySelector("#generatedAt"),
   metricsGrid: document.querySelector("#metricsGrid"),
   matchedCount: document.querySelector("#matchedCount"),
@@ -63,14 +66,14 @@ function escapeHtml(value) {
 }
 
 function formatNumber(value) {
-  return new Intl.NumberFormat("zh-CN").format(value || 0);
+  return new Intl.NumberFormat("en-US").format(value || 0);
 }
 
 function formatDate(value) {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.valueOf())) return value;
-  return date.toLocaleString("zh-CN", {
+  return date.toLocaleString("en-US", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -79,9 +82,20 @@ function formatDate(value) {
   });
 }
 
+function formatDateShort(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.valueOf())) return value;
+  return date.toLocaleDateString("en-US", { year: "numeric", month: "2-digit", day: "2-digit" });
+}
+
 function baseName(value) {
   const parts = String(value || "").split(/[\\/]/).filter(Boolean);
   return parts.at(-1) || value || "";
+}
+
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
 }
 
 function statusLabel(status) {
@@ -94,27 +108,47 @@ function statusBadge(status) {
 }
 
 function visibilityBadge(repo) {
-  return `<span class="badge ${repo.visibility}">${repo.isPrivate ? "private" : "public"}</span>`;
+  return `<span class="badge ${repo.visibility}">${repo.isPrivate ? "Private" : "Public"}</span>`;
 }
 
 function showToast(message) {
   window.clearTimeout(toastTimer);
   elements.toast.textContent = message;
   elements.toast.classList.add("show");
-  toastTimer = window.setTimeout(() => elements.toast.classList.remove("show"), 2400);
+  toastTimer = window.setTimeout(() => elements.toast.classList.remove("show"), 2600);
+}
+
+function parseScanRoots() {
+  return elements.scanRootsInput.value
+    .split(/\r?\n|;/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+function hydrateScanControls() {
+  const roots = asArray(state.summary.scanRoots)
+    .map(String)
+    .filter(Boolean);
+  if (roots.length && !elements.scanRootsInput.value.trim()) {
+    elements.scanRootsInput.value = roots.join("\n");
+  }
+  if (typeof state.summary.versionCheckUsedFetch === "boolean") {
+    elements.fetchToggle.checked = state.summary.versionCheckUsedFetch;
+  }
 }
 
 async function loadInventory() {
   const response = await fetch("/api/inventory", { cache: "no-store" });
   if (!response.ok) throw new Error(`inventory ${response.status}`);
   const data = await response.json();
-  state.summary = data.summary;
-  state.rows = data.rows;
-  state.localOnly = data.localOnly;
+  state.summary = data.summary || {};
+  state.rows = asArray(data.rows);
+  state.localOnly = asArray(data.localOnly);
   if (!state.selectedId) {
     const firstLocal = state.rows.find((repo) => repo.localMatchCount > 0);
     state.selectedId = (firstLocal || state.rows[0] || {}).id || "";
   }
+  hydrateScanControls();
   render();
 }
 
@@ -130,13 +164,14 @@ function render() {
 }
 
 function renderMetrics() {
+  const missingCount = Math.max((state.summary.remoteCount || 0) - (state.summary.matchedRemoteCount || 0), 0);
   const metrics = [
-    ["远端仓库", state.summary.remoteCount],
-    ["本地 Git", state.summary.localRepoCount],
-    ["远端有本地", state.summary.matchedRemoteCount],
-    ["缺本地副本", (state.summary.remoteCount || 0) - (state.summary.matchedRemoteCount || 0)],
-    ["私有仓库", state.summary.privateCount],
-    ["Fork", state.summary.forkCount],
+    ["Remote repos", state.summary.remoteCount],
+    ["Local Git", state.summary.localRepoCount],
+    ["Matched", state.summary.matchedRemoteCount],
+    ["Missing", missingCount],
+    ["Private", state.summary.privateCount],
+    ["Forks", state.summary.forkCount],
   ];
 
   elements.metricsGrid.innerHTML = metrics
@@ -154,19 +189,24 @@ function renderMetrics() {
 function renderMatched() {
   const matched = state.rows.filter((repo) => repo.localMatchCount > 0);
   elements.matchedCount.textContent = formatNumber(matched.length);
+  if (!matched.length) {
+    elements.matchedList.innerHTML = '<div class="empty-line">No local matches yet.</div>';
+    return;
+  }
+
   elements.matchedList.innerHTML = matched
     .map((repo) => {
-      const firstPath = repo.localPaths[0] || "";
-      const statusText = repo.localStatusList.map(statusLabel).join(" / ");
+      const firstPath = asArray(repo.localPaths)[0] || "";
+      const statusText = asArray(repo.localStatusList).map(statusLabel).join(" / ");
       return `
         <article class="matched-card">
           <button class="plain-select" type="button" data-select-repo="${escapeHtml(repo.id)}" title="${escapeHtml(repo.name)}">
             <span class="matched-title">${escapeHtml(repo.name)}</span>
-            <span class="matched-meta">${escapeHtml(statusText)} · ${formatNumber(repo.localMatchCount)} path</span>
+            <span class="matched-meta">${escapeHtml(statusText)} - ${formatNumber(repo.localMatchCount)} path${repo.localMatchCount === 1 ? "" : "s"}</span>
           </button>
           ${
             firstPath
-              ? `<button class="icon-button" type="button" data-open-path="${escapeHtml(firstPath)}" title="打开 ${escapeHtml(baseName(firstPath))}" aria-label="打开本地目录">${icons.folder}</button>`
+              ? `<button class="icon-button" type="button" data-open-path="${escapeHtml(firstPath)}" title="Open ${escapeHtml(baseName(firstPath))}" aria-label="Open local folder">${icons.folder}</button>`
               : ""
           }
         </article>
@@ -178,24 +218,27 @@ function renderMatched() {
 function filteredRows() {
   const query = state.filters.search.trim().toLowerCase();
   const rows = state.rows.filter((repo) => {
+    const localPaths = asArray(repo.localPaths);
+    const localMatches = asArray(repo.localMatches);
+    const statuses = asArray(repo.localStatusList);
     const searchable = [
       repo.name,
       repo.description,
       repo.language,
       repo.defaultBranch,
-      repo.localPaths.join(" "),
-      repo.localStatusList.join(" "),
+      localPaths.join(" "),
+      statuses.join(" "),
     ]
       .join(" ")
       .toLowerCase();
     if (query && !searchable.includes(query)) return false;
 
     if (state.filters.status === "local" && repo.localMatchCount === 0) return false;
-    if (state.filters.status === "dirty" && !repo.localMatches.some((match) => match.dirty)) return false;
+    if (state.filters.status === "dirty" && !localMatches.some((match) => match.dirty)) return false;
     if (
       !["all", "local", "dirty"].includes(state.filters.status) &&
       repo.localStatus !== state.filters.status &&
-      !repo.localStatusList.includes(state.filters.status)
+      !statuses.includes(state.filters.status)
     ) {
       return false;
     }
@@ -219,12 +262,12 @@ function renderRepoTable() {
   elements.resultCount.textContent = formatNumber(rows.length);
   const header = `
     <div class="table-header" role="row">
-      <span>仓库</span>
-      <span>可见性</span>
-      <span>状态</span>
-      <span>语言</span>
-      <span>默认分支</span>
-      <span>推送</span>
+      <span>Repository</span>
+      <span>Visibility</span>
+      <span>Status</span>
+      <span>Language</span>
+      <span>Default</span>
+      <span>Pushed</span>
     </div>
   `;
   const body = rows
@@ -239,72 +282,78 @@ function renderRepoTable() {
           <span>${statusBadge(repo.localStatus)}</span>
           <span class="mono">${escapeHtml(repo.language || "none")}</span>
           <span class="mono">${escapeHtml(repo.defaultBranch || "none")}</span>
-          <span class="mono">${escapeHtml(formatDate(repo.pushedAt).slice(0, 10))}</span>
+          <span class="mono">${escapeHtml(formatDateShort(repo.pushedAt))}</span>
         </button>
       `,
     )
     .join("");
-  elements.repoTable.innerHTML = header + body;
+  elements.repoTable.innerHTML = header + (body || '<div class="detail-empty small-empty">No repositories match the current filters.</div>');
 }
 
 function renderDetails() {
   const repo = state.rows.find((item) => item.id === state.selectedId);
   if (!repo) {
-    elements.detailPanel.innerHTML = '<div class="detail-empty">未选择仓库</div>';
+    elements.detailPanel.innerHTML = '<div class="detail-empty">Choose a repository</div>';
     return;
   }
 
-  const statusBadges = repo.localStatusList.map(statusBadge).join(" ");
-  const pathList = repo.localMatches.length
-    ? repo.localMatches
-        .map(
-          (match) => `
+  const statuses = asArray(repo.localStatusList);
+  const statusBadges = statuses.length ? statuses.map(statusBadge).join(" ") : statusBadge(repo.localStatus);
+  const localMatches = asArray(repo.localMatches);
+  const localPaths = asArray(repo.localPaths);
+  const pathList = localMatches.length
+    ? localMatches
+        .map((match) => {
+          const metrics = [
+            typeof match.ahead === "number" ? `<span class="badge">ahead ${match.ahead}</span>` : "",
+            typeof match.behind === "number" ? `<span class="badge">behind ${match.behind}</span>` : "",
+          ].join("");
+          return `
             <article class="path-item">
               <div>
                 <span class="path-text" title="${escapeHtml(match.path)}">${escapeHtml(match.path)}</span>
                 <div class="path-meta">
                   ${statusBadge(match.status)}
                   ${match.dirty ? statusBadge("dirty") : ""}
-                  <span class="badge">ahead ${match.ahead ?? ""}</span>
-                  <span class="badge">behind ${match.behind ?? ""}</span>
+                  ${metrics}
                 </div>
               </div>
-              <button class="icon-button" type="button" data-open-path="${escapeHtml(match.path)}" title="打开本地目录" aria-label="打开本地目录">
+              <button class="icon-button" type="button" data-open-path="${escapeHtml(match.path)}" title="Open local folder" aria-label="Open local folder">
                 ${icons.folder}
               </button>
             </article>
-          `,
-        )
+          `;
+        })
         .join("")
-    : '<p class="detail-description">no-local-copy</p>';
+    : '<p class="detail-description">No local checkout matched this remote repository.</p>';
 
   elements.detailPanel.innerHTML = `
     <div class="detail-title">
-      <div>${visibilityBadge(repo)} ${repo.isFork ? '<span class="badge">fork</span>' : '<span class="badge">source</span>'} ${statusBadges}</div>
+      <div>${visibilityBadge(repo)} ${repo.isFork ? '<span class="badge">Fork</span>' : '<span class="badge">Source</span>'} ${statusBadges}</div>
       <h3>${escapeHtml(repo.name)}</h3>
       <p class="detail-description">${escapeHtml(repo.description || "No description")}</p>
     </div>
 
     <div class="action-row">
       <a class="action-button" href="${escapeHtml(repo.url)}" target="_blank" rel="noreferrer">${icons.external}<span>GitHub</span></a>
-      <button class="action-button" type="button" data-copy="${escapeHtml(repo.cloneUrl)}">${icons.git}<span>Clone</span></button>
+      <button class="action-button" type="button" data-copy="${escapeHtml(repo.cloneUrl)}">${icons.git}<span>Clone URL</span></button>
       ${
-        repo.localPaths[0]
-          ? `<button class="action-button" type="button" data-open-path="${escapeHtml(repo.localPaths[0])}">${icons.folder}<span>目录</span></button>`
+        localPaths[0]
+          ? `<button class="action-button" type="button" data-open-path="${escapeHtml(localPaths[0])}">${icons.folder}<span>Folder</span></button>`
           : ""
       }
       ${
-        repo.localPaths[0]
-          ? `<button class="action-button" type="button" data-copy="${escapeHtml(repo.localPaths[0])}">${icons.copy}<span>路径</span></button>`
+        localPaths[0]
+          ? `<button class="action-button" type="button" data-copy="${escapeHtml(localPaths[0])}">${icons.copy}<span>Path</span></button>`
           : ""
       }
     </div>
 
     <div class="detail-grid">
-      <div class="detail-kv"><span>语言</span><strong>${escapeHtml(repo.language || "none")}</strong></div>
-      <div class="detail-kv"><span>默认分支</span><strong>${escapeHtml(repo.defaultBranch || "none")}</strong></div>
-      <div class="detail-kv"><span>最后推送</span><strong>${escapeHtml(formatDate(repo.pushedAt) || "none")}</strong></div>
-      <div class="detail-kv"><span>本地路径</span><strong>${formatNumber(repo.localMatchCount)}</strong></div>
+      <div class="detail-kv"><span>Language</span><strong>${escapeHtml(repo.language || "none")}</strong></div>
+      <div class="detail-kv"><span>Default branch</span><strong>${escapeHtml(repo.defaultBranch || "none")}</strong></div>
+      <div class="detail-kv"><span>Last pushed</span><strong>${escapeHtml(formatDate(repo.pushedAt) || "none")}</strong></div>
+      <div class="detail-kv"><span>Local paths</span><strong>${formatNumber(repo.localMatchCount)}</strong></div>
     </div>
 
     <div class="path-list">${pathList}</div>
@@ -313,9 +362,17 @@ function renderDetails() {
 
 function renderLocalOnly() {
   elements.localOnlyCount.textContent = formatNumber(state.localOnly.length);
+  if (!state.localOnly.length) {
+    elements.localOnlyList.innerHTML = '<div class="empty-line">No local-only Git folders were found.</div>';
+    return;
+  }
+
   elements.localOnlyList.innerHTML = state.localOnly
     .map((local) => {
-      const remoteText = (local.remotes || []).map((remote) => remote.repoKey || remote.url || remote.name).filter(Boolean).join(", ");
+      const remoteText = asArray(local.remotes)
+        .map((remote) => remote.repoKey || remote.url || remote.name)
+        .filter(Boolean)
+        .join(", ");
       return `
         <article class="local-row">
           <span>
@@ -325,7 +382,7 @@ function renderLocalOnly() {
           </span>
           <span>${statusBadge(local.dirty ? "dirty" : local.status)}</span>
           <span class="mono">${escapeHtml(local.branch || "none")}</span>
-          <button class="icon-button" type="button" data-open-path="${escapeHtml(local.path)}" title="打开本地目录" aria-label="打开本地目录">${icons.folder}</button>
+          <button class="icon-button" type="button" data-open-path="${escapeHtml(local.path)}" title="Open local folder" aria-label="Open local folder">${icons.folder}</button>
         </article>
       `;
     })
@@ -340,7 +397,7 @@ async function openLocalPath(localPath) {
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok || !data.ok) throw new Error(data.error || "open failed");
-  showToast(`已打开 ${baseName(localPath)}`);
+  showToast(`Opened ${baseName(localPath)}`);
 }
 
 async function copyText(text) {
@@ -357,7 +414,7 @@ async function copyText(text) {
     document.execCommand("copy");
     textarea.remove();
   }
-  showToast("已复制");
+  showToast("Copied");
 }
 
 function setActiveButton(container, attribute, value) {
@@ -402,26 +459,37 @@ elements.sortSelect.addEventListener("change", (event) => {
 
 elements.refreshButton.addEventListener("click", async () => {
   const previousTitle = elements.refreshButton.title;
+  const roots = parseScanRoots();
+  const maxDepth = Number.parseInt(elements.maxDepthInput.value, 10);
+  const payload = {
+    account: "Harzva",
+    fetch: elements.fetchToggle.checked,
+    maxDepth: Number.isFinite(maxDepth) ? maxDepth : 10,
+  };
+  if (roots.length) {
+    payload.scanRoots = roots;
+  }
+
   elements.refreshButton.disabled = true;
   elements.refreshButton.title = "Scanning";
-  showToast("正在重新扫描 GitHub 与本地仓库");
+  showToast("Scanning GitHub and local Git folders...");
   try {
     const response = await fetch("/api/refresh", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ account: "Harzva", fetch: true }),
+      body: JSON.stringify(payload),
     });
     const data = await response.json();
     if (!response.ok || !data.ok) throw new Error(data.error || "refresh failed");
-    state.summary = data.summary;
-    state.rows = data.rows;
-    state.localOnly = data.localOnly;
+    state.summary = data.summary || {};
+    state.rows = asArray(data.rows);
+    state.localOnly = asArray(data.localOnly);
     if (!state.rows.some((repo) => repo.id === state.selectedId)) {
       const firstLocal = state.rows.find((repo) => repo.localMatchCount > 0);
       state.selectedId = (firstLocal || state.rows[0] || {}).id || "";
     }
     render();
-    showToast("扫描完成");
+    showToast("Scan complete");
   } catch (error) {
     showToast(error.message);
   } finally {
@@ -456,5 +524,5 @@ document.addEventListener("click", async (event) => {
 });
 
 loadInventory().catch((error) => {
-  elements.repoTable.innerHTML = `<div class="detail-empty">加载失败：${escapeHtml(error.message)}</div>`;
+  elements.repoTable.innerHTML = `<div class="detail-empty">Failed to load inventory: ${escapeHtml(error.message)}</div>`;
 });

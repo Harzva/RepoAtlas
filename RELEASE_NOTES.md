@@ -1,15 +1,13 @@
-# Harzva Repo Atlas v0.1.0
+# Harzva Repo Atlas v0.1.1
 
-Initial Windows desktop release.
+Product polish and workflow hardening release.
 
 ## Highlights
 
-- Portable Rust/WebView exe for the Harzva repository dashboard.
-- Built-in GitHub repository inventory and local Git checkout matching.
-- GH Repo Cartographer style rescan flow from inside the app.
-- Safe local folder opening for scanned repositories.
-- CSV, Markdown, and JSON exports.
-- GitHub Pages landing page and polished README.
+- Rebuilt the embedded dashboard UI with clean text, fixed encoding issues, and steadier responsive layout behavior.
+- Added scan controls for custom local roots, fetch on/off, and max scan depth directly in the app.
+- Added a Windows CI workflow for formatting, `cargo check --locked`, and dashboard JavaScript syntax checks.
+- Added Rust build caching to the release workflow.
 
 ## Requirements for live rescans
 
