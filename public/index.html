@@ -118,6 +118,8 @@
           <a href="/reports/repo-atlas-full.csv" target="_blank" rel="noreferrer">CSV</a>
           <a href="/reports/repo-atlas-full.md" target="_blank" rel="noreferrer">MD</a>
         </nav>
+
+        <button id="guideButton" class="guide-button" type="button">Guide</button>
       </aside>
 
       <main class="workspace">
@@ -176,6 +178,73 @@
     </div>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <div id="onboardingModal" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="onboardingTitle">
+      <section class="onboarding-card">
+        <div class="onboarding-head">
+          <div>
+            <p class="eyebrow">First run guide</p>
+            <h2 id="onboardingTitle">Connect GitHub and local context</h2>
+          </div>
+          <button id="closeGuideButton" class="modal-close" type="button" aria-label="Close guide">x</button>
+        </div>
+
+        <div class="onboarding-progress" aria-label="Guide progress">
+          <span class="active"></span>
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+
+        <div class="onboarding-slides">
+          <article class="onboarding-slide active" data-guide-step="0">
+            <h3>1. Choose a login path</h3>
+            <p>RepoAtlas delegates GitHub authentication to GitHub CLI. The app does not ask for, store, or import your GitHub password or token.</p>
+            <div class="guide-grid">
+              <div>
+                <strong>Recommended</strong>
+                <code>gh auth login --web</code>
+                <button class="copy-command" type="button" data-copy="gh auth login --web">Copy</button>
+              </div>
+              <div>
+                <strong>Check status</strong>
+                <code>gh auth status</code>
+                <button class="copy-command" type="button" data-copy="gh auth status">Copy</button>
+              </div>
+            </div>
+          </article>
+
+          <article class="onboarding-slide" data-guide-step="1">
+            <h3>2. Understand account modes</h3>
+            <ul>
+              <li>Leave GitHub accounts empty to scan the active `gh` login.</li>
+              <li>Enter one account or alias per line for multi-account scans.</li>
+              <li>Private repositories require a login or router alias that can access that account.</li>
+              <li>Token/headless login belongs in GitHub CLI: `gh auth login --with-token`, not inside RepoAtlas.</li>
+            </ul>
+          </article>
+
+          <article class="onboarding-slide" data-guide-step="2">
+            <h3>3. Add local scan roots</h3>
+            <p>Scan roots are the local folders where your Git repositories live. RepoAtlas matches local remotes to GitHub repository keys and then enables folder actions.</p>
+            <code>C:\Users\you\Projects
+D:\work\repos</code>
+          </article>
+
+          <article class="onboarding-slide" data-guide-step="3">
+            <h3>4. Press Refresh</h3>
+            <p>Refresh lists remote repositories, scans local Git folders, classifies categories, and shows drift. If anything fails, the error stays visible above the metrics.</p>
+            <div class="guide-callout">New user checklist: Git installed, GitHub CLI installed, `gh auth login` completed, optional account aliases, optional scan roots.</div>
+          </article>
+        </div>
+
+        <div class="onboarding-actions">
+          <button id="prevGuideButton" class="action-button" type="button">Back</button>
+          <button id="nextGuideButton" class="action-button primary" type="button">Next</button>
+          <button id="finishGuideButton" class="action-button primary" type="button" hidden>Start scanning</button>
+        </div>
+      </section>
+    </div>
     <script src="/app.js" defer></script>
   </body>
 </html>

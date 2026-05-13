@@ -2,6 +2,7 @@ const state = {
   summary: {},
   rows: [],
   localOnly: [],
+  guideStep: 0,
   filters: {
     search: "",
     status: "all",
@@ -72,10 +73,17 @@ const elements = {
   localOnlyCount: document.querySelector("#localOnlyCount"),
   localOnlyList: document.querySelector("#localOnlyList"),
   refreshButton: document.querySelector("#refreshButton"),
+  guideButton: document.querySelector("#guideButton"),
+  onboardingModal: document.querySelector("#onboardingModal"),
+  closeGuideButton: document.querySelector("#closeGuideButton"),
+  prevGuideButton: document.querySelector("#prevGuideButton"),
+  nextGuideButton: document.querySelector("#nextGuideButton"),
+  finishGuideButton: document.querySelector("#finishGuideButton"),
   toast: document.querySelector("#toast"),
 };
 
 let toastTimer = 0;
+const guideStorageKey = "repo-atlas-guide-v1";
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => {
@@ -141,6 +149,31 @@ function showToast(message) {
   elements.toast.textContent = message;
   elements.toast.classList.add("show");
   toastTimer = window.setTimeout(() => elements.toast.classList.remove("show"), 2600);
+}
+
+function showGuide(step = 0) {
+  state.guideStep = Math.max(0, Math.min(3, step));
+  elements.onboardingModal.hidden = false;
+  renderGuide();
+}
+
+function hideGuide({ remember = true } = {}) {
+  elements.onboardingModal.hidden = true;
+  if (remember) {
+    window.localStorage.setItem(guideStorageKey, "done");
+  }
+}
+
+function renderGuide() {
+  elements.onboardingModal.querySelectorAll("[data-guide-step]").forEach((slide) => {
+    slide.classList.toggle("active", Number(slide.dataset.guideStep) === state.guideStep);
+  });
+  elements.onboardingModal.querySelectorAll(".onboarding-progress span").forEach((dot, index) => {
+    dot.classList.toggle("active", index === state.guideStep);
+  });
+  elements.prevGuideButton.disabled = state.guideStep === 0;
+  elements.nextGuideButton.hidden = state.guideStep === 3;
+  elements.finishGuideButton.hidden = state.guideStep !== 3;
 }
 
 function showError(message) {
@@ -222,6 +255,9 @@ async function loadInventory() {
   }
   hydrateScanControls();
   render();
+  if (!window.localStorage.getItem(guideStorageKey)) {
+    showGuide(0);
+  }
   if (shouldAutoRefresh()) {
     window.sessionStorage.setItem("repo-atlas-auto-refresh", "1");
     await refreshInventory({ automatic: true });
@@ -645,6 +681,41 @@ async function refreshInventory({ automatic = false } = {}) {
 
 elements.refreshButton.addEventListener("click", async () => {
   await refreshInventory();
+});
+
+elements.guideButton.addEventListener("click", () => {
+  showGuide(0);
+});
+
+elements.closeGuideButton.addEventListener("click", () => {
+  hideGuide();
+});
+
+elements.prevGuideButton.addEventListener("click", () => {
+  state.guideStep = Math.max(0, state.guideStep - 1);
+  renderGuide();
+});
+
+elements.nextGuideButton.addEventListener("click", () => {
+  state.guideStep = Math.min(3, state.guideStep + 1);
+  renderGuide();
+});
+
+elements.finishGuideButton.addEventListener("click", async () => {
+  hideGuide();
+  await refreshInventory();
+});
+
+elements.onboardingModal.addEventListener("click", (event) => {
+  if (event.target === elements.onboardingModal) {
+    hideGuide();
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !elements.onboardingModal.hidden) {
+    hideGuide();
+  }
 });
 
 document.addEventListener("click", async (event) => {

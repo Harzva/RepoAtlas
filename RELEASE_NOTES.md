@@ -1,19 +1,25 @@
-# RepoAtlas v0.3.1
+# RepoAtlas v0.3.2
 
-Regression fix for empty first-run inventories.
+Beginner onboarding release.
 
-## Fixes
+## Highlights
 
-- Automatically starts a refresh when the embedded inventory is still empty, so a fresh install does not sit at `0` repositories until the user guesses the next step.
-- Shows refresh and account errors as a persistent in-page banner instead of only a short toast.
-- Treats `current gh login`, `current`, and similar account text as the active GitHub CLI login, preventing the helper text from becoming a broken account alias.
-- Clarifies the account input placeholder: leave it empty for the current `gh` login, or enter multiple accounts such as `Harzva` and `saihao` on separate lines.
-- Adds regression tests for multi-account parsing and category inference in CI.
+- Added a first-run guide modal that explains GitHub CLI login, account modes, local scan roots, and the refresh flow.
+- Added a sidebar `Guide` button so users can reopen the tutorial any time.
+- Added copy buttons for the key setup commands: `gh auth login --web` and `gh auth status`.
+- Documented the supported login paths in README: current `gh` login, GitHub CLI web login, account-router aliases, and token/headless GitHub CLI setup.
 
-## Included from v0.3.0
+## Login model
 
-- Multi-account scanning with `accounts[]`, `REPO_ATLAS_ACCOUNTS`, and newline/comma/semicolon parsing.
-- Automatic repository categories: Skills, MCP, Memory, Software, Docs, Infra, Data, Research, Games, and Other.
-- Custom RepoAtlas logo, account chips, category filters, and four themes: Atlas, Midnight, Paper, and Aurora.
-- Custom desktop window icon.
-- Windows and macOS release packaging through GitHub Actions.
+RepoAtlas does not store GitHub passwords or tokens. It delegates authentication to GitHub CLI:
+
+- Recommended desktop setup: `gh auth login --web`
+- Status check: `gh auth status`
+- Headless setup: `gh auth login --with-token` or `GH_TOKEN`
+- Multi-account setup: enter one GitHub account or configured router alias per line in RepoAtlas
+
+## Included from v0.3.1
+
+- Empty first-run inventories automatically refresh instead of staying at zero.
+- Refresh errors remain visible in the page.
+- Regression tests cover account parsing and category inference.

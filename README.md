@@ -58,6 +58,25 @@ Harzva
 saihao
 ```
 
+### Beginner Login Guide
+
+RepoAtlas does not provide its own GitHub OAuth screen and does not store GitHub secrets. It runs local `gh` commands and reads the result.
+
+| Method | Best for | How it works |
+|---|---|---|
+| GitHub CLI web login | Most desktop users | Run `gh auth login --web`, finish the browser flow, then refresh RepoAtlas. |
+| Current `gh` login | Single-account users | Leave the app's GitHub accounts field empty. |
+| Multiple account aliases | Users with account routing | Put one account or router alias per line, for example `Harzva` and `saihao`. |
+| Token/headless login | Automation or locked-down machines | Configure `gh auth login --with-token` or `GH_TOKEN` outside the app. |
+
+A new user only needs:
+
+- Git installed.
+- GitHub CLI installed and authenticated with `gh auth login`.
+- Optional GitHub account names or local router aliases.
+- Optional scan roots such as `C:\Users\you\Projects` or `D:\work\repos`.
+- No token import inside RepoAtlas.
+
 ### Local Development
 
 ```powershell
