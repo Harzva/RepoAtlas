@@ -156,7 +156,7 @@ a {
 
 .app-shell {
   display: grid;
-  grid-template-columns: 284px minmax(0, 1fr);
+  grid-template-columns: 316px minmax(0, 1fr);
   min-height: 100vh;
 }
 
@@ -260,6 +260,106 @@ h3 {
 .account-box textarea {
   min-height: 78px;
   resize: vertical;
+}
+
+.auth-panel {
+  display: grid;
+  gap: 12px;
+  margin: 0 0 20px;
+  padding: 12px;
+  color: rgba(247, 251, 248, 0.84);
+  background:
+    linear-gradient(135deg, rgba(242, 192, 78, 0.12), rgba(66, 195, 181, 0.09)),
+    rgba(247, 251, 248, 0.05);
+  border: 1px solid rgba(247, 251, 248, 0.16);
+  border-radius: 8px;
+}
+
+.auth-heading {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+
+.auth-medal {
+  width: 38px;
+  height: 38px;
+  background:
+    radial-gradient(circle at 50% 50%, #f8fbf3 0 4px, transparent 5px),
+    radial-gradient(circle at 35% 35%, #f2c04e 0 5px, transparent 6px),
+    radial-gradient(circle at 66% 62%, #42c3b5 0 5px, transparent 6px),
+    linear-gradient(135deg, #0f4f55, #182622);
+  border: 2px solid rgba(248, 251, 243, 0.88);
+  border-radius: 50%;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+}
+
+.auth-heading strong {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+
+.auth-heading strong.ok {
+  color: #8ee6a6;
+}
+
+.auth-heading strong.warn {
+  color: #f2c04e;
+}
+
+.auth-heading strong.bad {
+  color: #ff9b8d;
+}
+
+.auth-actions {
+  display: grid;
+  grid-template-columns: 1fr 82px;
+  gap: 8px;
+}
+
+.auth-actions button {
+  min-height: 34px;
+  padding: 7px 10px;
+  color: rgba(247, 251, 248, 0.9);
+  background: transparent;
+  border: 1px solid rgba(247, 251, 248, 0.22);
+  border-radius: 6px;
+  font-weight: 900;
+}
+
+.auth-actions .auth-primary {
+  color: var(--accent-ink);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.auth-actions button:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+.gh-path-details {
+  color: rgba(247, 251, 248, 0.72);
+  font-size: 12px;
+}
+
+.gh-path-details summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.gh-path-details input {
+  width: 100%;
+  min-height: 36px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  color: var(--field-ink);
+  background: var(--field-bg);
+  border: 1px solid rgba(247, 251, 248, 0.22);
+  border-radius: 6px;
+  outline: none;
 }
 
 .scan-controls {
@@ -553,6 +653,92 @@ h3 {
   display: none;
 }
 
+.operation-panel {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 18px;
+  padding: 14px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--panel) 84%, var(--teal) 16%), var(--panel));
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(17, 23, 22, 0.08);
+}
+
+.operation-panel[hidden] {
+  display: none;
+}
+
+.operation-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.operation-top h3 {
+  font-size: 20px;
+}
+
+#operationPercent {
+  color: var(--teal);
+  font: 900 22px/1 "Bahnschrift", "Aptos Display", sans-serif;
+}
+
+.progress-track {
+  height: 10px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--line) 62%, var(--panel) 38%);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.progress-track span {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: linear-gradient(90deg, var(--teal), var(--accent));
+  border-radius: inherit;
+  transition: width 240ms ease;
+}
+
+.operation-panel.failed .progress-track span {
+  background: linear-gradient(90deg, var(--red), var(--amber));
+}
+
+.operation-panel.complete .progress-track span {
+  background: linear-gradient(90deg, var(--green), var(--teal));
+}
+
+#operationDetail {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.operation-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.operation-steps span {
+  min-height: 24px;
+  padding: 5px 8px;
+  color: var(--muted);
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.operation-steps span.active {
+  color: var(--teal);
+  background: var(--teal-soft);
+  border-color: color-mix(in srgb, var(--teal) 26%, transparent);
+}
+
 .metric-card {
   min-height: 92px;
   padding: 14px;
@@ -690,7 +876,7 @@ h3 {
 
 .content-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
   gap: 18px;
   align-items: start;
 }
@@ -708,6 +894,7 @@ h3 {
 
 .repo-table {
   display: grid;
+  overflow-x: auto;
   border-top: 1px solid var(--line);
 }
 
@@ -717,6 +904,7 @@ h3 {
   grid-template-columns: minmax(220px, 1.9fr) 104px 96px 112px 92px 98px;
   gap: 10px;
   align-items: center;
+  min-width: 780px;
   min-height: 54px;
   padding: 0 10px;
 }

@@ -12,7 +12,7 @@ use std::{
     process::{Command, Stdio},
     sync::Arc,
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 use tao::{
     dpi::LogicalSize,
@@ -210,6 +210,9 @@ fn route_request(request: HttpRequest, state: &AppState) -> HttpResponse {
         ("GET", "/api/inventory") => {
             json_response(200, flatten_inventory_result(&state.inventory_path))
         }
+        ("GET", "/api/auth/status") => auth_status_response(&[]),
+        ("POST", "/api/auth/status") => auth_status_response(&request.body),
+        ("POST", "/api/auth/login") => auth_login_response(&request.body),
         ("POST", "/api/refresh") => refresh_response(&request.body, state),
         ("POST", "/api/open-local") => open_local_response(&request.body, state),
         ("GET", path) if path.starts_with("/reports/") => report_response(path, state),
@@ -227,8 +230,108 @@ fn flatten_inventory_result(path: &Path) -> Value {
     }
 }
 
+fn auth_status_response(body: &[u8]) -> HttpResponse {
+    let payload: Value = serde_json::from_slice(body).unwrap_or_else(|_| json!({}));
+    apply_gh_path(&payload);
+    json_response(200, auth_status_value())
+}
+
+fn auth_login_response(body: &[u8]) -> HttpResponse {
+    let payload: Value = serde_json::from_slice(body).unwrap_or_else(|_| json!({}));
+    apply_gh_path(&payload);
+    let status = auth_status_value();
+    if status
+        .get("authenticated")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        return json_response(
+            200,
+            json!({ "ok": true, "message": "Already authenticated.", "status": status }),
+        );
+    }
+
+    if !status
+        .get("installed")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        return json_response(
+            500,
+            json!({ "ok": false, "error": "GitHub CLI was not found. Install gh or set a custom gh path." }),
+        );
+    }
+
+    let login = run_with_timeout(
+        &gh_command(),
+        &[
+            "auth",
+            "login",
+            "--web",
+            "--git-protocol",
+            "https",
+            "--hostname",
+            "github.com",
+        ],
+        None,
+        Duration::from_secs(300),
+    );
+    if !login.status.success() {
+        return json_response(
+            500,
+            json!({
+                "ok": false,
+                "error": process_message(&login),
+                "stdout": String::from_utf8_lossy(&login.stdout).trim().to_string(),
+            }),
+        );
+    }
+
+    let status = auth_status_value();
+    json_response(
+        200,
+        json!({ "ok": true, "message": "GitHub authentication completed.", "status": status }),
+    )
+}
+
+fn auth_status_value() -> Value {
+    let version = run(&gh_command(), &["--version"], None);
+    if !version.status.success() {
+        return json!({
+            "ok": true,
+            "installed": false,
+            "authenticated": false,
+            "ghPath": gh_command(),
+            "error": process_message(&version),
+        });
+    }
+
+    let status = gh_raw("", &["auth", "status", "--hostname", "github.com"]);
+    let authenticated = status.status.success();
+    let login = if authenticated {
+        gh("", &["api", "user", "--jq", ".login"])
+            .ok()
+            .map(|proc| String::from_utf8_lossy(&proc.stdout).trim().to_string())
+            .filter(|value| !value.is_empty())
+            .unwrap_or_default()
+    } else {
+        String::new()
+    };
+
+    json!({
+        "ok": true,
+        "installed": true,
+        "authenticated": authenticated,
+        "login": login,
+        "ghPath": gh_command(),
+        "message": if authenticated { "GitHub CLI is authenticated." } else { "GitHub CLI is installed but not authenticated." },
+        "details": process_message(&status),
+    })
+}
+
 fn refresh_response(body: &[u8], state: &AppState) -> HttpResponse {
     let payload: Value = serde_json::from_slice(body).unwrap_or_else(|_| json!({}));
+    apply_gh_path(&payload);
     let accounts = request_accounts(&payload);
     let fetch = payload
         .get("fetch")
@@ -329,6 +432,24 @@ fn unique_account_names(values: Vec<String>) -> Vec<String> {
         .into_iter()
         .filter(|value| seen.insert(value.to_ascii_lowercase()))
         .collect()
+}
+
+fn apply_gh_path(payload: &Value) {
+    if let Some(path) = payload.get("ghPath").and_then(Value::as_str).map(str::trim) {
+        if path.is_empty() {
+            env::remove_var("REPO_ATLAS_GH");
+        } else {
+            env::set_var("REPO_ATLAS_GH", path);
+        }
+    }
+}
+
+fn gh_command() -> String {
+    env::var("REPO_ATLAS_GH")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "gh".into())
 }
 
 fn open_local_response(body: &[u8], state: &AppState) -> HttpResponse {
@@ -1170,9 +1291,13 @@ fn gh_raw(account: &str, args: &[&str]) -> ProcOutput {
         for arg in args {
             command.arg(arg);
         }
+        configure_command(&mut command);
         command.output()
     } else {
-        Command::new("gh").args(args).output()
+        let mut command = Command::new(gh_command());
+        command.args(args);
+        configure_command(&mut command);
+        command.output()
     };
     match output {
         Ok(output) => ProcOutput {
@@ -1186,6 +1311,13 @@ fn gh_raw(account: &str, args: &[&str]) -> ProcOutput {
             stderr: error.to_string().into_bytes(),
         },
     }
+}
+
+fn process_message(output: &ProcOutput) -> String {
+    String::from_utf8_lossy(&output.stderr)
+        .trim()
+        .to_string()
+        .if_empty_then(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
 trait EmptyFallback {
@@ -1411,6 +1543,7 @@ fn run(command: &str, args: &[&str], cwd: Option<&Path>) -> ProcOutput {
     if let Some(cwd) = cwd {
         cmd.current_dir(cwd);
     }
+    configure_command(&mut cmd);
     match cmd.output() {
         Ok(output) => ProcOutput {
             status: output.status,
@@ -1424,6 +1557,81 @@ fn run(command: &str, args: &[&str], cwd: Option<&Path>) -> ProcOutput {
         },
     }
 }
+
+fn run_with_timeout(
+    command: &str,
+    args: &[&str],
+    cwd: Option<&Path>,
+    timeout: Duration,
+) -> ProcOutput {
+    let mut cmd = Command::new(command);
+    cmd.args(args).stdout(Stdio::piped()).stderr(Stdio::piped());
+    if let Some(cwd) = cwd {
+        cmd.current_dir(cwd);
+    }
+    configure_command(&mut cmd);
+
+    let mut child = match cmd.spawn() {
+        Ok(child) => child,
+        Err(error) => {
+            return ProcOutput {
+                status: failed_status(),
+                stdout: vec![],
+                stderr: error.to_string().into_bytes(),
+            }
+        }
+    };
+    let started = Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => {
+                return match child.wait_with_output() {
+                    Ok(output) => ProcOutput {
+                        status: output.status,
+                        stdout: output.stdout,
+                        stderr: output.stderr,
+                    },
+                    Err(error) => ProcOutput {
+                        status: failed_status(),
+                        stdout: vec![],
+                        stderr: error.to_string().into_bytes(),
+                    },
+                };
+            }
+            Ok(None) if started.elapsed() > timeout => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return ProcOutput {
+                    status: failed_status(),
+                    stdout: vec![],
+                    stderr: b"GitHub login timed out before authentication completed.".to_vec(),
+                };
+            }
+            Ok(None) => thread::sleep(Duration::from_millis(250)),
+            Err(error) => {
+                return ProcOutput {
+                    status: failed_status(),
+                    stdout: vec![],
+                    stderr: error.to_string().into_bytes(),
+                }
+            }
+        }
+    }
+}
+
+fn configure_command(command: &mut Command) {
+    configure_no_window(command);
+}
+
+#[cfg(windows)]
+fn configure_no_window(command: &mut Command) {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    command.creation_flags(CREATE_NO_WINDOW);
+}
+
+#[cfg(not(windows))]
+fn configure_no_window(_command: &mut Command) {}
 
 fn merge_inventory(remote_repos: Vec<Value>, local_repos: Vec<Value>) -> Value {
     let mut locals_by_key: BTreeMap<String, Vec<Value>> = BTreeMap::new();
@@ -1794,5 +2002,73 @@ mod tests {
             classify_repo("owner/memory-bank", "RAG knowledge store", &[]),
             "memory"
         );
+    }
+
+    #[test]
+    fn flatten_inventory_keeps_remote_rows_visible() {
+        let inventory = json!({
+            "generatedAt": "2026-05-13T00:00:00Z",
+            "remoteCount": 2,
+            "localRepoCount": 1,
+            "matchedRemoteCount": 1,
+            "rows": [
+                {
+                    "remote": {
+                        "nameWithOwner": "RepoAtlas/example-skill",
+                        "repoKey": "repoatlas/example-skill",
+                        "url": "https://github.com/RepoAtlas/example-skill",
+                        "description": "Codex skill examples",
+                        "isPrivate": false,
+                        "isFork": false,
+                        "isArchived": false,
+                        "primaryLanguage": { "name": "Rust" },
+                        "defaultBranchRef": { "name": "main" },
+                        "accountLogin": "RepoAtlas"
+                    },
+                    "defaultBranch": "main",
+                    "localMatches": [
+                        {
+                            "path": "D:\\code\\example-skill",
+                            "status": "synced",
+                            "dirty": false
+                        }
+                    ]
+                },
+                {
+                    "remote": {
+                        "nameWithOwner": "RepoAtlas/context-mcp",
+                        "repoKey": "repoatlas/context-mcp",
+                        "url": "https://github.com/RepoAtlas/context-mcp",
+                        "description": "MCP server",
+                        "isPrivate": false,
+                        "isFork": false,
+                        "isArchived": false,
+                        "primaryLanguage": { "name": "TypeScript" },
+                        "accountLogin": "RepoAtlas"
+                    },
+                    "localMatches": []
+                }
+            ],
+            "localOnly": []
+        });
+
+        let flattened = flatten_inventory(&inventory);
+        let rows = flattened
+            .get("rows")
+            .and_then(Value::as_array)
+            .expect("flattened rows");
+        assert_eq!(rows.len(), 2);
+        assert_eq!(
+            flattened
+                .get("summary")
+                .and_then(|summary| summary.get("remoteCount"))
+                .and_then(Value::as_u64),
+            Some(2)
+        );
+        assert_eq!(
+            rows[0].get("category").and_then(Value::as_str),
+            Some("skills")
+        );
+        assert_eq!(rows[1].get("category").and_then(Value::as_str), Some("mcp"));
     }
 }

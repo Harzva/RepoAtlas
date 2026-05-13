@@ -54,6 +54,10 @@ const elements = {
   statusFilters: document.querySelector("#statusFilters"),
   categoryFilters: document.querySelector("#categoryFilters"),
   accountsInput: document.querySelector("#accountsInput"),
+  authStatusText: document.querySelector("#authStatusText"),
+  authLoginButton: document.querySelector("#authLoginButton"),
+  authCheckButton: document.querySelector("#authCheckButton"),
+  ghPathInput: document.querySelector("#ghPathInput"),
   visibilityFilters: document.querySelector("#visibilityFilters"),
   forkFilters: document.querySelector("#forkFilters"),
   themeButtons: document.querySelector("#themeButtons"),
@@ -64,6 +68,13 @@ const elements = {
   generatedAt: document.querySelector("#generatedAt"),
   accountChips: document.querySelector("#accountChips"),
   errorBanner: document.querySelector("#errorBanner"),
+  operationPanel: document.querySelector("#operationPanel"),
+  operationLabel: document.querySelector("#operationLabel"),
+  operationTitle: document.querySelector("#operationTitle"),
+  operationPercent: document.querySelector("#operationPercent"),
+  operationBar: document.querySelector("#operationBar"),
+  operationDetail: document.querySelector("#operationDetail"),
+  operationSteps: document.querySelector("#operationSteps"),
   metricsGrid: document.querySelector("#metricsGrid"),
   matchedCount: document.querySelector("#matchedCount"),
   matchedList: document.querySelector("#matchedList"),
@@ -83,7 +94,25 @@ const elements = {
 };
 
 let toastTimer = 0;
+let operationTimer = 0;
+let operationProgress = 0;
 const guideStorageKey = "repo-atlas-guide-v1";
+const ghPathStorageKey = "repo-atlas-gh-path";
+
+const scanSteps = [
+  ["Auth", "Checking GitHub CLI authentication"],
+  ["Remote", "Loading GitHub repositories"],
+  ["Local", "Scanning local Git folders"],
+  ["Compare", "Comparing remotes and upstream branches"],
+  ["Render", "Updating the atlas"],
+];
+
+const loginSteps = [
+  ["CLI", "Checking GitHub CLI"],
+  ["Browser", "Opening GitHub login in your default browser"],
+  ["Callback", "Waiting for GitHub CLI to save credentials"],
+  ["Verify", "Verifying authenticated account"],
+];
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => {
@@ -190,6 +219,121 @@ function clearError() {
   elements.errorBanner.hidden = true;
 }
 
+function getGhPath() {
+  return elements.ghPathInput.value.trim();
+}
+
+function withGhPath(payload = {}) {
+  return { ...payload, ghPath: getGhPath() };
+}
+
+function setAuthStatus(status) {
+  const installed = Boolean(status && status.installed);
+  const authenticated = Boolean(status && status.authenticated);
+  elements.authStatusText.className = authenticated ? "ok" : installed ? "warn" : "bad";
+  if (!installed) {
+    elements.authStatusText.textContent = "GitHub CLI not found";
+  } else if (authenticated) {
+    elements.authStatusText.textContent = `Authenticated as ${status.login || "GitHub user"}`;
+  } else {
+    elements.authStatusText.textContent = "GitHub CLI installed, login needed";
+  }
+}
+
+async function checkAuthStatus({ quiet = false } = {}) {
+  if (!quiet) startOperation("GitHub status", "Checking authentication", loginSteps.slice(0, 1));
+  try {
+    const response = await fetch("/api/auth/status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(withGhPath()),
+    });
+    const status = await response.json();
+    setAuthStatus(status);
+    if (!response.ok || status.ok === false) throw new Error(status.error || "auth status failed");
+    if (!quiet) completeOperation("Status checked", status.message || "GitHub CLI status updated");
+    return status;
+  } catch (error) {
+    elements.authStatusText.className = "bad";
+    elements.authStatusText.textContent = error.message;
+    if (!quiet) failOperation("Status check failed", error.message);
+    return { installed: false, authenticated: false, error: error.message };
+  }
+}
+
+async function loginWithGitHub() {
+  startOperation("GitHub login", "Opening browser login", loginSteps);
+  clearError();
+  elements.authLoginButton.disabled = true;
+  elements.authCheckButton.disabled = true;
+  try {
+    const response = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(withGhPath()),
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || "GitHub login failed");
+    setAuthStatus(data.status || {});
+    completeOperation("GitHub login complete", data.message || "Credentials saved by GitHub CLI");
+  } catch (error) {
+    showError(error.message);
+    failOperation("GitHub login failed", error.message);
+  } finally {
+    elements.authLoginButton.disabled = false;
+    elements.authCheckButton.disabled = false;
+  }
+}
+
+function startOperation(label, title, steps) {
+  window.clearInterval(operationTimer);
+  operationProgress = 4;
+  elements.operationPanel.hidden = false;
+  elements.operationPanel.classList.remove("complete", "failed");
+  elements.operationLabel.textContent = label;
+  elements.operationTitle.textContent = title;
+  elements.operationDetail.textContent = steps[0]?.[1] || "Starting...";
+  elements.operationSteps.innerHTML = steps
+    .map((step, index) => `<span class="${index === 0 ? "active" : ""}" data-step-index="${index}">${escapeHtml(step[0])}</span>`)
+    .join("");
+  setOperationProgress(4, steps);
+  operationTimer = window.setInterval(() => {
+    const next = Math.min(operationProgress + Math.max(1, Math.round((88 - operationProgress) / 9)), 88);
+    setOperationProgress(next, steps);
+  }, 520);
+}
+
+function setOperationProgress(value, steps) {
+  operationProgress = value;
+  const percent = Math.max(0, Math.min(100, Math.round(value)));
+  elements.operationPercent.textContent = `${percent}%`;
+  elements.operationBar.style.width = `${percent}%`;
+  if (steps && steps.length) {
+    const activeIndex = Math.min(steps.length - 1, Math.floor((percent / 100) * steps.length));
+    elements.operationSteps.querySelectorAll("span").forEach((step, index) => {
+      step.classList.toggle("active", index <= activeIndex);
+    });
+    elements.operationDetail.textContent = steps[activeIndex]?.[1] || elements.operationDetail.textContent;
+  }
+}
+
+function completeOperation(title, detail) {
+  window.clearInterval(operationTimer);
+  elements.operationPanel.classList.add("complete");
+  elements.operationTitle.textContent = title;
+  elements.operationDetail.textContent = detail;
+  setOperationProgress(100);
+  elements.operationSteps.querySelectorAll("span").forEach((step) => step.classList.add("active"));
+}
+
+function failOperation(title, detail) {
+  window.clearInterval(operationTimer);
+  elements.operationPanel.classList.add("failed");
+  elements.operationTitle.textContent = title;
+  elements.operationDetail.textContent = detail;
+  setOperationProgress(Math.max(operationProgress, 12));
+}
+
 function parseScanRoots() {
   return elements.scanRootsInput.value
     .split(/\r?\n|;/)
@@ -238,6 +382,7 @@ function hydrateScanControls() {
 }
 
 async function loadInventory() {
+  elements.ghPathInput.value = window.localStorage.getItem(ghPathStorageKey) || "";
   const response = await fetch("/api/inventory", { cache: "no-store" });
   if (!response.ok) throw new Error(`inventory ${response.status}`);
   const data = await response.json();
@@ -255,6 +400,7 @@ async function loadInventory() {
   }
   hydrateScanControls();
   render();
+  checkAuthStatus({ quiet: true });
   if (!window.localStorage.getItem(guideStorageKey)) {
     showGuide(0);
   }
@@ -638,17 +784,17 @@ function buildRefreshPayload() {
   if (roots.length) {
     payload.scanRoots = roots;
   }
-  return payload;
+  return withGhPath(payload);
 }
 
 async function refreshInventory({ automatic = false } = {}) {
   const previousTitle = elements.refreshButton.title;
   const payload = buildRefreshPayload();
 
+  startOperation("Repository scan", automatic ? "Auto-scanning empty inventory" : "Scanning repositories", scanSteps);
   elements.refreshButton.disabled = true;
   elements.refreshButton.title = "Scanning";
   clearError();
-  showToast(automatic ? "Inventory is empty, scanning automatically..." : "Scanning GitHub and local Git folders...");
   try {
     const response = await fetch("/api/refresh", {
       method: "POST",
@@ -669,10 +815,10 @@ async function refreshInventory({ automatic = false } = {}) {
       state.selectedId = (firstLocal || state.rows[0] || {}).id || "";
     }
     render();
-    showToast("Scan complete");
+    completeOperation("Scan complete", `${formatNumber(state.rows.length)} repositories loaded`);
   } catch (error) {
     showError(error.message);
-    showToast(error.message);
+    failOperation("Scan failed", error.message);
   } finally {
     elements.refreshButton.disabled = false;
     elements.refreshButton.title = previousTitle;
@@ -681,6 +827,19 @@ async function refreshInventory({ automatic = false } = {}) {
 
 elements.refreshButton.addEventListener("click", async () => {
   await refreshInventory();
+});
+
+elements.authLoginButton.addEventListener("click", async () => {
+  await loginWithGitHub();
+});
+
+elements.authCheckButton.addEventListener("click", async () => {
+  await checkAuthStatus();
+});
+
+elements.ghPathInput.addEventListener("change", async () => {
+  window.localStorage.setItem(ghPathStorageKey, getGhPath());
+  await checkAuthStatus();
 });
 
 elements.guideButton.addEventListener("click", () => {

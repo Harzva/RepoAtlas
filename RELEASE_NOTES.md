@@ -1,25 +1,26 @@
-# RepoAtlas v0.3.2
+# RepoAtlas v0.4.0
 
-Beginner onboarding release.
+Authentication and progress experience release.
 
 ## Highlights
 
-- Added a first-run guide modal that explains GitHub CLI login, account modes, local scan roots, and the refresh flow.
-- Added a sidebar `Guide` button so users can reopen the tutorial any time.
-- Added copy buttons for the key setup commands: `gh auth login --web` and `gh auth status`.
-- Documented the supported login paths in README: current `gh` login, GitHub CLI web login, account-router aliases, and token/headless GitHub CLI setup.
+- Added an in-app GitHub Login panel that checks GitHub CLI status and starts `gh auth login --web` from RepoAtlas.
+- Added optional custom `gh.exe` path support for users who already have a portable or manually installed GitHub CLI.
+- Hid Windows console windows for background `gh`, `git`, and helper commands during scans and login.
+- Replaced scan completion toast with a visible operation progress bar and step chips for Auth, Remote, Local, Compare, and Render.
+- Added login progress feedback for CLI detection, browser login, callback wait, and verification.
+- Improved layout spacing to reduce panel overlap, widened the sidebar, and contained wide repository tables with horizontal scrolling.
+- Polished the sidebar authentication panel with an achievement-style badge inspired by the local icon reference set.
 
 ## Login model
 
-RepoAtlas does not store GitHub passwords or tokens. It delegates authentication to GitHub CLI:
+RepoAtlas still does not store GitHub passwords or tokens itself. GitHub CLI stores credentials locally after login.
 
-- Recommended desktop setup: `gh auth login --web`
-- Status check: `gh auth status`
-- Headless setup: `gh auth login --with-token` or `GH_TOKEN`
-- Multi-account setup: enter one GitHub account or configured router alias per line in RepoAtlas
+- Recommended: click `Login` in RepoAtlas.
+- Equivalent terminal command: `gh auth login --web --git-protocol https --hostname github.com`.
+- Existing CLI users can click `Check` and scan immediately.
+- Portable CLI users can set a custom `gh.exe` path in the sidebar.
 
-## Included from v0.3.1
+## Regression guard
 
-- Empty first-run inventories automatically refresh instead of staying at zero.
-- Refresh errors remain visible in the page.
-- Regression tests cover account parsing and category inference.
+- CI continues to run formatting, `cargo check --locked`, `cargo test --locked`, and `node --check public/app.js`.

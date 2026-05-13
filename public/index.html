@@ -28,6 +28,24 @@
           <textarea id="accountsInput" rows="3" spellcheck="false" placeholder="Leave empty for current gh login&#10;Harzva&#10;saihao"></textarea>
         </label>
 
+        <section class="auth-panel" aria-label="GitHub authentication">
+          <div class="auth-heading">
+            <span class="auth-medal" aria-hidden="true"></span>
+            <div>
+              <p class="control-title">GitHub Login</p>
+              <strong id="authStatusText">Checking GitHub CLI...</strong>
+            </div>
+          </div>
+          <div class="auth-actions">
+            <button id="authLoginButton" class="auth-primary" type="button">Login</button>
+            <button id="authCheckButton" type="button">Check</button>
+          </div>
+          <details class="gh-path-details">
+            <summary>Use custom gh path</summary>
+            <input id="ghPathInput" type="text" spellcheck="false" placeholder="C:\Program Files\GitHub CLI\gh.exe" />
+          </details>
+        </section>
+
         <section class="control-group" aria-label="Status filter">
           <p class="control-title">Status</p>
           <div id="statusFilters" class="segmented">
@@ -143,6 +161,19 @@
 
         <div id="errorBanner" class="error-banner" hidden></div>
 
+        <section id="operationPanel" class="operation-panel" hidden aria-live="polite">
+          <div class="operation-top">
+            <div>
+              <p id="operationLabel" class="eyebrow">Working</p>
+              <h3 id="operationTitle">Preparing</h3>
+            </div>
+            <strong id="operationPercent">0%</strong>
+          </div>
+          <div class="progress-track"><span id="operationBar"></span></div>
+          <p id="operationDetail">Starting...</p>
+          <div id="operationSteps" class="operation-steps"></div>
+        </section>
+
         <section id="metricsGrid" class="metrics-grid" aria-label="Inventory metrics"></section>
 
         <section class="matched-strip" aria-labelledby="matchedHeading">
@@ -202,7 +233,11 @@
             <p>RepoAtlas delegates GitHub authentication to GitHub CLI. The app does not ask for, store, or import your GitHub password or token.</p>
             <div class="guide-grid">
               <div>
-                <strong>Recommended</strong>
+                <strong>Recommended in app</strong>
+                <code>Click Login in the sidebar</code>
+              </div>
+              <div>
+                <strong>Terminal equivalent</strong>
                 <code>gh auth login --web</code>
                 <button class="copy-command" type="button" data-copy="gh auth login --web">Copy</button>
               </div>

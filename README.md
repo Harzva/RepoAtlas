@@ -35,6 +35,8 @@ GitHub becomes a real context layer only when remote repositories, local folders
 | Context categories | Automatically classify repositories into Skills, MCP, Memory, Software, Docs, Infra, Data, Research, Games, or Other. |
 | Drift signals | Show `synced`, `behind`, `ahead`, `diverged`, `dirty`, `no-upstream`, and `no-local-copy`. |
 | Themeable dashboard | Switch between Atlas, Midnight, Paper, and Aurora themes. |
+| Guided login | Check GitHub CLI status, launch browser login, or set a custom `gh.exe` path from the app. |
+| Progress feedback | Scan and login operations show visible progress steps instead of a completion-only toast. |
 | Portable reports | Export live JSON, CSV, and Markdown reports from the local app. |
 | Cross-platform releases | GitHub Actions builds Windows exe and macOS tar.gz assets. |
 
@@ -64,9 +66,11 @@ RepoAtlas does not provide its own GitHub OAuth screen and does not store GitHub
 
 | Method | Best for | How it works |
 |---|---|---|
-| GitHub CLI web login | Most desktop users | Run `gh auth login --web`, finish the browser flow, then refresh RepoAtlas. |
+| In-app Login button | Most desktop users | Click `Login`, finish the browser flow, then RepoAtlas verifies `gh auth status`. |
+| GitHub CLI web login | Terminal users | Run `gh auth login --web`, finish the browser flow, then refresh RepoAtlas. |
 | Current `gh` login | Single-account users | Leave the app's GitHub accounts field empty. |
 | Multiple account aliases | Users with account routing | Put one account or router alias per line, for example `Harzva` and `saihao`. |
+| Custom gh path | Portable CLI users | Set the path to `gh.exe` in the sidebar before login or scan. |
 | Token/headless login | Automation or locked-down machines | Configure `gh auth login --with-token` or `GH_TOKEN` outside the app. |
 
 A new user only needs:
