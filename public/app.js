@@ -2,6 +2,9 @@ const state = {
   summary: {},
   rows: [],
   localOnly: [],
+  repoDetails: {},
+  repoDetailsLoading: {},
+  lastAuthStatus: null,
   guideStep: 0,
   filters: {
     search: "",
@@ -56,8 +59,18 @@ const elements = {
   accountsInput: document.querySelector("#accountsInput"),
   authStatusText: document.querySelector("#authStatusText"),
   authLoginButton: document.querySelector("#authLoginButton"),
+  authPlusButton: document.querySelector("#authPlusButton"),
   authCheckButton: document.querySelector("#authCheckButton"),
   ghPathInput: document.querySelector("#ghPathInput"),
+  loginPlusModal: document.querySelector("#loginPlusModal"),
+  closeLoginPlusButton: document.querySelector("#closeLoginPlusButton"),
+  loginAccountInput: document.querySelector("#loginAccountInput"),
+  addAccountButton: document.querySelector("#addAccountButton"),
+  webLoginPlusButton: document.querySelector("#webLoginPlusButton"),
+  checkLoginPlusButton: document.querySelector("#checkLoginPlusButton"),
+  tokenAccessInput: document.querySelector("#tokenAccessInput"),
+  tokenLoginButton: document.querySelector("#tokenLoginButton"),
+  authAccountsList: document.querySelector("#authAccountsList"),
   visibilityFilters: document.querySelector("#visibilityFilters"),
   forkFilters: document.querySelector("#forkFilters"),
   themeButtons: document.querySelector("#themeButtons"),
@@ -247,6 +260,7 @@ function withGhPath(payload = {}) {
 }
 
 function setAuthStatus(status) {
+  state.lastAuthStatus = status || null;
   const installed = Boolean(status && status.installed);
   const authenticated = Boolean(status && status.authenticated);
   elements.authStatusText.className = authenticated ? "ok" : installed ? "warn" : "bad";
@@ -257,6 +271,29 @@ function setAuthStatus(status) {
   } else {
     elements.authStatusText.textContent = "GitHub CLI installed, login needed";
   }
+  renderAuthAccounts(status);
+}
+
+function renderAuthAccounts(status = state.lastAuthStatus) {
+  const accounts = asArray(status?.accounts);
+  if (!elements.authAccountsList) return;
+  if (!accounts.length) {
+    elements.authAccountsList.innerHTML = '<div class="empty-line">No GitHub CLI accounts detected yet.</div>';
+    return;
+  }
+  elements.authAccountsList.innerHTML = accounts
+    .map(
+      (account) => `
+        <article class="auth-account-item">
+          <div>
+            <strong>${escapeHtml(account.login || "GitHub account")}</strong>
+            <span>${escapeHtml(account.state || "unknown")} - ${escapeHtml(account.gitProtocol || "git")} - ${escapeHtml(account.tokenSource || "credential store")}</span>
+          </div>
+          <button class="action-button" type="button" data-add-account="${escapeHtml(account.login || "")}">${account.active ? "Active" : "Add"}</button>
+        </article>
+      `,
+    )
+    .join("");
 }
 
 async function checkAuthStatus({ quiet = false } = {}) {
@@ -280,7 +317,7 @@ async function checkAuthStatus({ quiet = false } = {}) {
   }
 }
 
-async function loginWithGitHub() {
+async function loginWithGitHub({ force = false } = {}) {
   startOperation("GitHub login", "Opening browser login", loginSteps);
   clearError();
   elements.authLoginButton.disabled = true;
@@ -289,7 +326,7 @@ async function loginWithGitHub() {
     const response = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(withGhPath()),
+      body: JSON.stringify(withGhPath({ force })),
     });
     const data = await response.json();
     if (!response.ok || !data.ok) throw new Error(data.error || "GitHub login failed");
@@ -302,6 +339,54 @@ async function loginWithGitHub() {
     elements.authLoginButton.disabled = false;
     elements.authCheckButton.disabled = false;
   }
+}
+
+async function loginWithTokenAccess() {
+  const token = elements.tokenAccessInput.value.trim();
+  if (!token) {
+    showToast("Paste a token first");
+    return;
+  }
+  startOperation("GitHub access", "Saving token with GitHub CLI", loginSteps);
+  clearError();
+  elements.tokenLoginButton.disabled = true;
+  try {
+    const response = await fetch("/api/auth/token-login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(withGhPath({ token })),
+    });
+    const data = await response.json();
+    elements.tokenAccessInput.value = "";
+    if (!response.ok || !data.ok) throw new Error(data.error || "GitHub token login failed");
+    setAuthStatus(data.status || {});
+    completeOperation("GitHub access saved", data.message || "Credentials saved by GitHub CLI");
+  } catch (error) {
+    showError(error.message);
+    failOperation("GitHub access failed", error.message);
+  } finally {
+    elements.tokenLoginButton.disabled = false;
+  }
+}
+
+function showLoginPlus() {
+  elements.loginPlusModal.hidden = false;
+  renderAuthAccounts();
+}
+
+function hideLoginPlus() {
+  elements.loginPlusModal.hidden = true;
+}
+
+function addAccountToScan(account) {
+  const clean = String(account || "").trim();
+  if (!clean) return;
+  const existing = parseAccounts().filter((value) => value !== "");
+  if (!existing.some((item) => item.toLowerCase() === clean.toLowerCase())) {
+    const currentText = elements.accountsInput.value.trim();
+    elements.accountsInput.value = currentText ? `${currentText}\n${clean}` : clean;
+  }
+  showToast(`Added ${clean}`);
 }
 
 function startOperation(label, title, steps) {
@@ -600,6 +685,163 @@ function renderRepoTable() {
   elements.repoTable.innerHTML = header + (body || '<div class="detail-empty small-empty">No repositories match the current filters.</div>');
 }
 
+function repoPath(repo, suffix = "") {
+  const base = repo.url || `https://github.com/${repo.name || repo.repoKey || ""}`;
+  return `${base.replace(/\/$/, "")}${suffix}`;
+}
+
+function detailItems(items, emptyText) {
+  const list = asArray(items);
+  if (!list.length) return `<p class="detail-description">${escapeHtml(emptyText)}</p>`;
+  return `
+    <div class="github-item-list">
+      ${list
+        .map(
+          (item) => `
+            <a class="github-item" href="${escapeHtml(item.url || "#")}" target="_blank" rel="noreferrer">
+              <span>${item.number ? `#${escapeHtml(item.number)} ` : ""}${escapeHtml(item.title || item.name || item.tagName || item.environment || "GitHub item")}</span>
+              <small>${escapeHtml(formatDateShort(item.updatedAt || item.publishedAt || item.createdAt) || item.type || item.latestVersion || "")}</small>
+            </a>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function serviceCard(title, body, actionLabel, url) {
+  return `
+    <article class="service-card">
+      <div>
+        <strong>${escapeHtml(title)}</strong>
+        <p>${escapeHtml(body)}</p>
+      </div>
+      ${url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noreferrer">${escapeHtml(actionLabel)}</a>` : ""}
+    </article>
+  `;
+}
+
+function renderGitHubPanel(repo) {
+  const detail = state.repoDetails[repo.id];
+  const loading = state.repoDetailsLoading[repo.id];
+  if (loading) {
+    return `
+      <section class="github-detail-panel">
+        <div class="detail-section-head">
+          <h4>GitHub live details</h4>
+          <span class="badge">Loading</span>
+        </div>
+        <div class="empty-line">Loading Issues, Pull Requests, Releases, Pages, Deployments, and Packages...</div>
+      </section>
+    `;
+  }
+  if (!detail) {
+    return `
+      <section class="github-detail-panel">
+        <div class="detail-section-head">
+          <h4>GitHub live details</h4>
+          <button class="action-button" type="button" data-refresh-details="${escapeHtml(repo.id)}">Load</button>
+        </div>
+      </section>
+    `;
+  }
+  if (detail.ok === false) {
+    return `
+      <section class="github-detail-panel">
+        <div class="detail-section-head">
+          <h4>GitHub live details</h4>
+          <button class="action-button" type="button" data-refresh-details="${escapeHtml(repo.id)}">Retry</button>
+        </div>
+        <p class="detail-description">${escapeHtml(detail.error || "GitHub details failed to load.")}</p>
+      </section>
+    `;
+  }
+
+  const issues = detail.issues || {};
+  const pulls = detail.pullRequests || {};
+  const releases = detail.releases || {};
+  const pages = detail.pages || {};
+  const deployments = detail.deployments || {};
+  const packages = detail.packages || {};
+  const links = detail.links || {};
+  const pagesData = pages.data || {};
+  const pagesBody = pages.enabled
+    ? `${pagesData.status || "published"}${pagesData.html_url ? ` - ${pagesData.html_url}` : ""}`
+    : "No GitHub Pages site detected";
+  const releaseBody = asArray(releases.items).length
+    ? `${asArray(releases.items)[0].tagName || asArray(releases.items)[0].name} published`
+    : "No releases published";
+  const packageBody = (packages.count || 0) > 0 ? `${formatNumber(packages.count)} packages published` : "No packages published";
+  const deploymentBody = asArray(deployments.items).length
+    ? `${asArray(deployments.items)[0].environment || "deployment"} ${formatDateShort(asArray(deployments.items)[0].updatedAt || asArray(deployments.items)[0].createdAt)}`
+    : "No recent deployments";
+
+  return `
+    <section class="github-detail-panel">
+      <div class="detail-section-head">
+        <h4>GitHub live details</h4>
+        <button class="action-button" type="button" data-refresh-details="${escapeHtml(repo.id)}">Refresh</button>
+      </div>
+
+      <div class="github-stat-grid">
+        <a href="${escapeHtml(links.issues || repoPath(repo, "/issues"))}" target="_blank" rel="noreferrer"><span>Issues</span><strong>${formatNumber(issues.count)}</strong></a>
+        <a href="${escapeHtml(links.pullRequests || repoPath(repo, "/pulls"))}" target="_blank" rel="noreferrer"><span>Pull requests</span><strong>${formatNumber(pulls.count)}</strong></a>
+        <a href="${escapeHtml(links.releases || repoPath(repo, "/releases"))}" target="_blank" rel="noreferrer"><span>Releases</span><strong>${formatNumber(releases.count)}</strong></a>
+        <a href="${escapeHtml(links.packages || repoPath(repo, "/pkgs"))}" target="_blank" rel="noreferrer"><span>Packages</span><strong>${formatNumber(packages.count)}</strong></a>
+      </div>
+
+      <div class="github-section">
+        <div class="detail-section-head small">
+          <h4>Open issues</h4>
+          <a href="${escapeHtml(links.issues || repoPath(repo, "/issues"))}" target="_blank" rel="noreferrer">Open</a>
+        </div>
+        ${detailItems(issues.items, "No open issues found.")}
+      </div>
+
+      <div class="github-section">
+        <div class="detail-section-head small">
+          <h4>Pull requests</h4>
+          <a href="${escapeHtml(links.pullRequests || repoPath(repo, "/pulls"))}" target="_blank" rel="noreferrer">Open</a>
+        </div>
+        ${detailItems(pulls.items, "No open pull requests found.")}
+      </div>
+
+      <div class="service-grid">
+        ${serviceCard("Releases", releaseBody, asArray(releases.items).length ? "View releases" : "Create new release", asArray(releases.items).length ? links.releases : links.newRelease)}
+        ${serviceCard("GitHub Pages", pagesBody, pages.enabled && pagesData.html_url ? "Open site" : "Pages settings", pages.enabled && pagesData.html_url ? pagesData.html_url : links.pagesSettings)}
+        ${serviceCard("Deployments", deploymentBody, "View deployments", links.deployments)}
+        ${serviceCard("Packages", packageBody, (packages.count || 0) > 0 ? "View packages" : "Publish package", links.packages)}
+      </div>
+    </section>
+  `;
+}
+
+async function loadRepoDetails(repo, { force = false } = {}) {
+  if (!repo || (!force && (state.repoDetails[repo.id] || state.repoDetailsLoading[repo.id]))) return;
+  state.repoDetailsLoading[repo.id] = true;
+  renderDetails();
+  try {
+    const response = await fetch("/api/repo-details", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(
+        withGhPath({
+          repoKey: repo.repoKey,
+          fullName: repo.name,
+          account: repo.accountAlias || repo.owner,
+        }),
+      ),
+    });
+    const data = await response.json();
+    state.repoDetails[repo.id] = response.ok ? data : { ok: false, error: data.error || "GitHub details failed" };
+  } catch (error) {
+    state.repoDetails[repo.id] = { ok: false, error: error.message };
+  } finally {
+    state.repoDetailsLoading[repo.id] = false;
+    if (state.selectedId === repo.id) renderDetails();
+  }
+}
+
 function renderDetails() {
   const repo = state.rows.find((item) => item.id === state.selectedId);
   if (!repo) {
@@ -669,7 +911,11 @@ function renderDetails() {
     </div>
 
     <div class="path-list">${pathList}</div>
+    ${renderGitHubPanel(repo)}
   `;
+  if (!state.repoDetails[repo.id] && !state.repoDetailsLoading[repo.id]) {
+    loadRepoDetails(repo);
+  }
 }
 
 function renderLocalOnly() {
@@ -856,8 +1102,33 @@ elements.authLoginButton.addEventListener("click", async () => {
   await loginWithGitHub();
 });
 
+elements.authPlusButton.addEventListener("click", () => {
+  showLoginPlus();
+});
+
 elements.authCheckButton.addEventListener("click", async () => {
   await checkAuthStatus();
+});
+
+elements.closeLoginPlusButton.addEventListener("click", () => {
+  hideLoginPlus();
+});
+
+elements.addAccountButton.addEventListener("click", () => {
+  addAccountToScan(elements.loginAccountInput.value);
+  elements.loginAccountInput.value = "";
+});
+
+elements.webLoginPlusButton.addEventListener("click", async () => {
+  await loginWithGitHub({ force: true });
+});
+
+elements.checkLoginPlusButton.addEventListener("click", async () => {
+  await checkAuthStatus();
+});
+
+elements.tokenLoginButton.addEventListener("click", async () => {
+  await loginWithTokenAccess();
 });
 
 elements.ghPathInput.addEventListener("change", async () => {
@@ -895,12 +1166,33 @@ elements.onboardingModal.addEventListener("click", (event) => {
 });
 
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !elements.loginPlusModal.hidden) {
+    hideLoginPlus();
+  }
   if (event.key === "Escape" && !elements.onboardingModal.hidden) {
     hideGuide();
   }
 });
 
 document.addEventListener("click", async (event) => {
+  if (event.target === elements.loginPlusModal) {
+    hideLoginPlus();
+    return;
+  }
+
+  const addAccountButton = event.target.closest("[data-add-account]");
+  if (addAccountButton) {
+    addAccountToScan(addAccountButton.dataset.addAccount);
+    return;
+  }
+
+  const refreshDetailsButton = event.target.closest("[data-refresh-details]");
+  if (refreshDetailsButton) {
+    const repo = state.rows.find((item) => item.id === refreshDetailsButton.dataset.refreshDetails);
+    await loadRepoDetails(repo, { force: true });
+    return;
+  }
+
   const selectButton = event.target.closest("[data-select-repo]");
   if (selectButton) {
     state.selectedId = selectButton.dataset.selectRepo;

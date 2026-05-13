@@ -38,6 +38,7 @@
           </div>
           <div class="auth-actions">
             <button id="authLoginButton" class="auth-primary" type="button">Login</button>
+            <button id="authPlusButton" type="button">Login+</button>
             <button id="authCheckButton" type="button">Check</button>
           </div>
           <details class="gh-path-details">
@@ -210,6 +211,48 @@
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
+    <div id="loginPlusModal" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="loginPlusTitle">
+      <section class="login-plus-card">
+        <div class="onboarding-head">
+          <div>
+            <p class="eyebrow">Account access</p>
+            <h2 id="loginPlusTitle">GitHub Login+</h2>
+          </div>
+          <button id="closeLoginPlusButton" class="modal-close" type="button" aria-label="Close Login+">x</button>
+        </div>
+
+        <div class="login-plus-body">
+          <section class="login-plus-section">
+            <h3>Add account to scan</h3>
+            <p>Use a GitHub login or a local account-router alias. RepoAtlas will add it to the account list; access still comes from GitHub CLI or your router.</p>
+            <div class="login-plus-row">
+              <input id="loginAccountInput" type="text" spellcheck="false" placeholder="saihao or Harzva" />
+              <button id="addAccountButton" class="action-button primary" type="button">Add</button>
+            </div>
+          </section>
+
+          <section class="login-plus-section">
+            <h3>Authorize access</h3>
+            <p>Choose browser login for normal desktop auth, or paste a token once to let GitHub CLI save it locally. RepoAtlas does not store the token. Package metadata may require the `read:packages` scope.</p>
+            <div class="login-plus-actions">
+              <button id="webLoginPlusButton" class="action-button primary" type="button">Web login</button>
+              <button id="checkLoginPlusButton" class="action-button" type="button">Check accounts</button>
+            </div>
+            <label class="token-box">
+              <span>Personal access token</span>
+              <input id="tokenAccessInput" type="password" spellcheck="false" autocomplete="off" placeholder="ghp_... or github_pat_..." />
+            </label>
+            <button id="tokenLoginButton" class="action-button" type="button">Save access with gh</button>
+          </section>
+
+          <section class="login-plus-section">
+            <h3>Known GitHub CLI accounts</h3>
+            <div id="authAccountsList" class="auth-account-list"></div>
+          </section>
+        </div>
+      </section>
+    </div>
+
     <div id="onboardingModal" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="onboardingTitle">
       <section class="onboarding-card">
         <div class="onboarding-head">
@@ -234,7 +277,7 @@
             <div class="guide-grid">
               <div>
                 <strong>Recommended in app</strong>
-                <code>Click Login in the sidebar</code>
+                <code>Click Login or Login+ in the sidebar</code>
               </div>
               <div>
                 <strong>Terminal equivalent</strong>
@@ -254,6 +297,7 @@
             <ul>
               <li>Leave GitHub accounts empty to scan the active `gh` login.</li>
               <li>Enter one account or alias per line for multi-account scans.</li>
+              <li>Use Login+ to add a scan account, start web auth, or pass one token to GitHub CLI.</li>
               <li>Private repositories require a login or router alias that can access that account.</li>
               <li>Token/headless login belongs in GitHub CLI: `gh auth login --with-token`, not inside RepoAtlas.</li>
             </ul>

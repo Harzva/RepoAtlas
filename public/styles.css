@@ -315,7 +315,7 @@ h3 {
 
 .auth-actions {
   display: grid;
-  grid-template-columns: 1fr 82px;
+  grid-template-columns: 1fr 86px 78px;
   gap: 8px;
 }
 
@@ -360,6 +360,103 @@ h3 {
   border: 1px solid rgba(247, 251, 248, 0.22);
   border-radius: 6px;
   outline: none;
+}
+
+.login-plus-card {
+  width: min(820px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.28);
+}
+
+.login-plus-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  padding: 18px;
+}
+
+.login-plus-section {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 14px;
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.login-plus-section:last-child {
+  grid-column: 1 / -1;
+}
+
+.login-plus-section h3 {
+  font-size: 18px;
+}
+
+.login-plus-section p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.login-plus-row,
+.login-plus-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.login-plus-row input,
+.token-box input {
+  flex: 1;
+  min-width: 180px;
+  min-height: 38px;
+  padding: 9px 10px;
+  color: var(--field-ink);
+  background: var(--field-bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.token-box {
+  display: grid;
+  gap: 6px;
+}
+
+.token-box span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.auth-account-list {
+  display: grid;
+  gap: 8px;
+}
+
+.auth-account-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.auth-account-item strong {
+  display: block;
+}
+
+.auth-account-item span {
+  color: var(--muted);
+  font: 12px/1.4 "Cascadia Code", "Consolas", monospace;
 }
 
 .scan-controls {
@@ -1163,6 +1260,128 @@ h3 {
   margin-top: 6px;
 }
 
+.github-detail-panel {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.detail-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.detail-section-head h4 {
+  margin: 0;
+  font: 900 16px/1.1 "Bahnschrift", "Aptos Display", sans-serif;
+}
+
+.detail-section-head.small h4 {
+  font-size: 14px;
+}
+
+.detail-section-head a {
+  color: var(--teal);
+  font-size: 12px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.github-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.github-stat-grid a {
+  min-height: 58px;
+  padding: 10px;
+  color: var(--ink);
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  text-decoration: none;
+}
+
+.github-stat-grid span {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.github-stat-grid strong {
+  display: block;
+  margin-top: 6px;
+  font: 900 22px/1 "Bahnschrift", "Aptos Display", sans-serif;
+}
+
+.github-section {
+  display: grid;
+  gap: 8px;
+}
+
+.github-item-list {
+  display: grid;
+  gap: 6px;
+}
+
+.github-item {
+  display: grid;
+  gap: 4px;
+  padding: 9px;
+  color: var(--ink);
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  text-decoration: none;
+}
+
+.github-item span {
+  overflow: hidden;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.github-item small {
+  color: var(--muted);
+  font: 11px/1.3 "Cascadia Code", "Consolas", monospace;
+}
+
+.service-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.service-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.service-card p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.service-card a {
+  color: var(--teal);
+  font-weight: 900;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
 .local-only-panel {
   margin-top: 18px;
 }
@@ -1425,6 +1644,11 @@ h3 {
   }
 
   .detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .login-plus-body,
+  .github-stat-grid {
     grid-template-columns: 1fr;
   }
 

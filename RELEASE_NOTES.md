@@ -1,19 +1,20 @@
-# RepoAtlas v0.4.1
+# RepoAtlas v0.5.0
 
-Local matching and multi-tag classification patch.
+Login+ and GitHub live details release.
 
 ## Highlights
 
-- Added stronger default scan roots, including current working ancestors and the user's `D:\study\code` workspace when present, so local clones such as RepoAtlas are less likely to appear as missing.
-- Merged explicit scan roots with default roots instead of replacing them completely.
-- Replaced single-category inference with multi-tag inference. A repository can now appear under multiple category filters when it matches multiple contexts.
-- Tightened Skills detection so generic prose such as "GBrain skills" does not classify a normal QA/RAG repository as a Skills repository.
-- Updated dashboard badges, filters, detail panels, CSV export, and Markdown export to show multiple tags.
-- Added regression tests for multi-tag inference, CampusAgent-QA classification, scan-root merging, and visible flattened rows.
+- Added a `Login+` account panel for adding scan accounts or router aliases.
+- Added browser login from `Login+`, with a force option for adding another GitHub CLI account.
+- Added one-time token access login through GitHub CLI. RepoAtlas passes the token to `gh auth login --with-token` and does not store it.
+- Added known GitHub CLI account display from `gh auth status --json hosts`.
+- Added lazy-loaded repository details for Issues, Pull Requests, Releases, GitHub Pages, Deployments, and Packages.
+- Added GitHub links for opening Issues, PRs, Releases, Pages settings, Deployments, Packages, and new release creation in the browser.
+- Added a GitHub Pages roadmap section for a future Codex plugin UI and a static waitlist form.
 
 ## Compatibility
 
-Existing inventories still work because `category` and `categoryLabel` remain as the primary tag for backward compatibility. New scans also include `categories` and `categoryLabels`.
+RepoAtlas still delegates authentication and credential storage to GitHub CLI. GitHub management actions continue to open in the browser; this release only reads and links GitHub metadata.
 
 ## Regression guard
 

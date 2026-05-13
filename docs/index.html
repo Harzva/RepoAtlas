@@ -434,6 +434,81 @@
         background: var(--charcoal);
       }
 
+      .vision-band {
+        color: #f8fbf3;
+        background:
+          linear-gradient(135deg, rgba(11, 127, 119, 0.22), rgba(240, 192, 76, 0.12)),
+          #141c1a;
+      }
+
+      .vision-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 0.92fr) minmax(300px, 0.68fr);
+        gap: 28px;
+        align-items: start;
+      }
+
+      .todo-list {
+        display: grid;
+        gap: 10px;
+        margin: 26px 0 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .todo-list li {
+        padding: 12px 14px;
+        color: rgba(248, 251, 243, 0.86);
+        background: rgba(255, 255, 255, 0.07);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 8px;
+      }
+
+      .waitlist-card {
+        padding: 22px;
+        color: var(--ink);
+        background: #f8fbf3;
+        border-radius: 8px;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.22);
+      }
+
+      .waitlist-card p {
+        color: #52605b;
+        line-height: 1.55;
+      }
+
+      .waitlist-form {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 8px;
+        margin-top: 14px;
+      }
+
+      .waitlist-form input {
+        min-height: 44px;
+        padding: 10px 12px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        font: inherit;
+      }
+
+      .waitlist-form button {
+        min-height: 44px;
+        padding: 10px 14px;
+        color: var(--accent-ink);
+        background: var(--amber);
+        border: 1px solid var(--amber);
+        border-radius: 6px;
+        font-weight: 900;
+      }
+
+      .waitlist-note {
+        min-height: 20px;
+        margin-top: 10px;
+        color: var(--teal);
+        font-weight: 800;
+      }
+
       .install-grid {
         display: grid;
         grid-template-columns: minmax(0, 1fr) minmax(280px, 420px);
@@ -478,7 +553,12 @@
         .section-title,
         .install-grid,
         .feature-grid,
+        .vision-grid,
         .guide-panel.active {
+          grid-template-columns: 1fr;
+        }
+
+        .waitlist-form {
           grid-template-columns: 1fr;
         }
 
@@ -502,6 +582,7 @@
         </div>
         <div class="nav-links">
           <a href="#install-guide">Install Guide</a>
+          <a href="#codex-plugin-roadmap">Plugin TODO</a>
           <a href="https://github.com/Harzva/RepoAtlas">GitHub</a>
           <a href="https://github.com/Harzva/RepoAtlas/releases/latest">Release</a>
         </div>
@@ -516,6 +597,7 @@
         <div class="hero-actions">
           <a class="button primary" href="https://github.com/Harzva/RepoAtlas/releases/latest">Download Release</a>
           <a class="button" href="#install-guide">Install Guide</a>
+          <a class="button" href="#codex-plugin-roadmap">Plugin TODO</a>
           <a class="button" href="https://github.com/Harzva/RepoAtlas#quick-start">Quick Start</a>
         </div>
       </div>
@@ -766,6 +848,35 @@
       </div>
     </section>
 
+    <section class="page-section vision-band" id="codex-plugin-roadmap">
+      <div class="inner vision-grid">
+        <div>
+          <p class="eyebrow">Future / TODO</p>
+          <h2>RepoAtlas as a future Codex plugin surface.</h2>
+          <p class="lead">
+            Today RepoAtlas focuses on local-GitHub coordination from a desktop app. When Codex exposes richer plugin UI
+            extension points similar to VS Code sidebars, RepoAtlas can become a Codex-native navigation layer for
+            repositories, issue context, pull requests, releases, local folders, and conversation-linked project memory.
+          </p>
+          <ul class="todo-list">
+            <li>Bring repository cards, local paths, Issues, Pull Requests, and Releases into a Codex sidebar.</li>
+            <li>Connect repo context with AI conversation history so project work can be resumed faster.</li>
+            <li>Keep destructive actions on GitHub or local Git tools until the plugin workflow is mature.</li>
+            <li>Use RepoAtlas desktop as the proving ground for multi-account and local-online synchronization.</li>
+          </ul>
+        </div>
+        <aside class="waitlist-card">
+          <h3>Join the Codex plugin waitlist</h3>
+          <p>Get notified when RepoAtlas starts testing a Codex plugin workflow for repository navigation and project-memory context.</p>
+          <form id="waitlistForm" class="waitlist-form">
+            <input id="waitlistEmail" type="email" required placeholder="Enter your email" />
+            <button type="submit">Join Waitlist</button>
+          </form>
+          <div id="waitlistNote" class="waitlist-note" aria-live="polite"></div>
+        </aside>
+      </div>
+    </section>
+
     <section class="page-section install-band">
       <div class="inner install-grid">
         <div>
@@ -799,6 +910,16 @@ RepoAtlas-vX.Y.Z-macos-ARM64.tar.gz</code>
             panel.classList.toggle("active", panel.dataset.installPanel === target);
           });
         });
+      });
+      document.querySelector("#waitlistForm")?.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const email = document.querySelector("#waitlistEmail").value.trim();
+        if (!email) return;
+        localStorage.setItem("repoatlas-waitlist-email", email);
+        document.querySelector("#waitlistNote").textContent = "Thanks. Opening an email draft so we can actually receive it.";
+        const subject = encodeURIComponent("RepoAtlas Codex plugin waitlist");
+        const body = encodeURIComponent(`Please add ${email} to the RepoAtlas Codex plugin waitlist.`);
+        window.location.href = `mailto:?subject=${subject}&body=${body}`;
       });
     </script>
   </body>

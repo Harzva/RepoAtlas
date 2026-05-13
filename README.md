@@ -16,6 +16,7 @@
 [Download](https://github.com/Harzva/RepoAtlas/releases/latest) |
 [Website](https://harzva.github.io/RepoAtlas/) |
 [Install Guide](https://harzva.github.io/RepoAtlas/#install-guide) |
+[Plugin TODO](https://harzva.github.io/RepoAtlas/#codex-plugin-roadmap) |
 [Quick Start](#quick-start) |
 [Workflow](#workflow)
 
@@ -37,6 +38,8 @@ GitHub becomes a real context layer only when remote repositories, local folders
 | Drift signals | Show `synced`, `behind`, `ahead`, `diverged`, `dirty`, `no-upstream`, and `no-local-copy`. |
 | Themeable dashboard | Switch between Atlas, Midnight, Paper, and Aurora themes. |
 | Guided login | Check GitHub CLI status, launch browser login, or set a custom `gh.exe` path from the app. |
+| Login+ account access | Add scan accounts, trigger browser auth, or pass a one-time token to GitHub CLI without storing it in RepoAtlas. |
+| GitHub live details | Open a repository card to see Issues, Pull Requests, Releases, Pages, Deployments, and Packages with links back to GitHub. |
 | Progress feedback | Scan and login operations show visible progress steps instead of a completion-only toast. |
 | Portable reports | Export live JSON, CSV, and Markdown reports from the local app. |
 | Cross-platform releases | GitHub Actions builds Windows exe and macOS tar.gz assets. |
@@ -88,6 +91,7 @@ RepoAtlas does not provide its own GitHub OAuth screen and does not store GitHub
 | Method | Best for | How it works |
 |---|---|---|
 | In-app Login button | Most desktop users | Click `Login`, finish the browser flow, then RepoAtlas verifies `gh auth status`. |
+| Login+ | Multi-account users | Add an account alias, start browser auth, or pass a one-time token to GitHub CLI. |
 | GitHub CLI web login | Terminal users | Run `gh auth login --web`, finish the browser flow, then refresh RepoAtlas. |
 | Current `gh` login | Single-account users | Leave the app's GitHub accounts field empty. |
 | Multiple account aliases | Users with account routing | Put one account or router alias per line, for example `Harzva` and `saihao`. |

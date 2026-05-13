@@ -213,6 +213,8 @@ fn route_request(request: HttpRequest, state: &AppState) -> HttpResponse {
         ("GET", "/api/auth/status") => auth_status_response(&[]),
         ("POST", "/api/auth/status") => auth_status_response(&request.body),
         ("POST", "/api/auth/login") => auth_login_response(&request.body),
+        ("POST", "/api/auth/token-login") => auth_token_login_response(&request.body),
+        ("POST", "/api/repo-details") => repo_details_response(&request.body),
         ("POST", "/api/refresh") => refresh_response(&request.body, state),
         ("POST", "/api/open-local") => open_local_response(&request.body, state),
         ("GET", path) if path.starts_with("/reports/") => report_response(path, state),
@@ -239,11 +241,16 @@ fn auth_status_response(body: &[u8]) -> HttpResponse {
 fn auth_login_response(body: &[u8]) -> HttpResponse {
     let payload: Value = serde_json::from_slice(body).unwrap_or_else(|_| json!({}));
     apply_gh_path(&payload);
-    let status = auth_status_value();
-    if status
-        .get("authenticated")
+    let force = payload
+        .get("force")
         .and_then(Value::as_bool)
-        .unwrap_or(false)
+        .unwrap_or(false);
+    let status = auth_status_value();
+    if !force
+        && status
+            .get("authenticated")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
     {
         return json_response(
             200,
@@ -268,6 +275,8 @@ fn auth_login_response(body: &[u8]) -> HttpResponse {
             "auth",
             "login",
             "--web",
+            "--scopes",
+            "read:packages",
             "--git-protocol",
             "https",
             "--hostname",
@@ -294,6 +303,57 @@ fn auth_login_response(body: &[u8]) -> HttpResponse {
     )
 }
 
+fn auth_token_login_response(body: &[u8]) -> HttpResponse {
+    let payload: Value = serde_json::from_slice(body).unwrap_or_else(|_| json!({}));
+    apply_gh_path(&payload);
+    let token = payload
+        .get("token")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .unwrap_or("");
+    if token.is_empty() {
+        return json_response(
+            400,
+            json!({ "ok": false, "error": "Token is required for access login." }),
+        );
+    }
+
+    let version = run(&gh_command(), &["--version"], None);
+    if !version.status.success() {
+        return json_response(
+            500,
+            json!({ "ok": false, "error": "GitHub CLI was not found. Install gh or set a custom gh path." }),
+        );
+    }
+
+    let login = run_with_input(
+        &gh_command(),
+        &[
+            "auth",
+            "login",
+            "--with-token",
+            "--git-protocol",
+            "https",
+            "--hostname",
+            "github.com",
+        ],
+        None,
+        format!("{token}\n").as_bytes(),
+    );
+    if !login.status.success() {
+        return json_response(
+            500,
+            json!({ "ok": false, "error": process_message(&login) }),
+        );
+    }
+
+    let status = auth_status_value();
+    json_response(
+        200,
+        json!({ "ok": true, "message": "GitHub token access saved by GitHub CLI.", "status": status }),
+    )
+}
+
 fn auth_status_value() -> Value {
     let version = run(&gh_command(), &["--version"], None);
     if !version.status.success() {
@@ -308,6 +368,7 @@ fn auth_status_value() -> Value {
 
     let status = gh_raw("", &["auth", "status", "--hostname", "github.com"]);
     let authenticated = status.status.success();
+    let accounts = auth_accounts_value();
     let login = if authenticated {
         gh("", &["api", "user", "--jq", ".login"])
             .ok()
@@ -315,7 +376,16 @@ fn auth_status_value() -> Value {
             .filter(|value| !value.is_empty())
             .unwrap_or_default()
     } else {
-        String::new()
+        accounts
+            .as_array()
+            .and_then(|items| {
+                items
+                    .iter()
+                    .find(|item| item.get("active").and_then(Value::as_bool).unwrap_or(false))
+            })
+            .and_then(|item| item.get("login").and_then(Value::as_str))
+            .unwrap_or("")
+            .to_string()
     };
 
     json!({
@@ -323,10 +393,326 @@ fn auth_status_value() -> Value {
         "installed": true,
         "authenticated": authenticated,
         "login": login,
+        "accounts": accounts,
         "ghPath": gh_command(),
         "message": if authenticated { "GitHub CLI is authenticated." } else { "GitHub CLI is installed but not authenticated." },
         "details": process_message(&status),
     })
+}
+
+fn auth_accounts_value() -> Value {
+    let status = gh_raw(
+        "",
+        &[
+            "auth",
+            "status",
+            "--hostname",
+            "github.com",
+            "--json",
+            "hosts",
+        ],
+    );
+    if !status.status.success() && status.stdout.is_empty() {
+        return json!([]);
+    }
+    let Ok(value) = serde_json::from_slice::<Value>(&status.stdout) else {
+        return json!([]);
+    };
+    value
+        .get("hosts")
+        .and_then(|hosts| hosts.get("github.com"))
+        .and_then(Value::as_array)
+        .map(|accounts| {
+            Value::Array(
+                accounts
+                    .iter()
+                    .map(|account| {
+                        json!({
+                            "login": account.get("login").and_then(Value::as_str).unwrap_or(""),
+                            "active": account.get("active").and_then(Value::as_bool).unwrap_or(false),
+                            "state": account.get("state").and_then(Value::as_str).unwrap_or("unknown"),
+                            "gitProtocol": account.get("gitProtocol").and_then(Value::as_str).unwrap_or(""),
+                            "tokenSource": account.get("tokenSource").and_then(Value::as_str).unwrap_or(""),
+                            "scopes": account.get("scopes").and_then(Value::as_str).unwrap_or(""),
+                        })
+                    })
+                    .collect(),
+            )
+        })
+        .unwrap_or_else(|| json!([]))
+}
+
+fn repo_details_response(body: &[u8]) -> HttpResponse {
+    let payload: Value = serde_json::from_slice(body).unwrap_or_else(|_| json!({}));
+    apply_gh_path(&payload);
+    let full_name = payload
+        .get("fullName")
+        .or_else(|| payload.get("name"))
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim();
+    let repo_key = payload
+        .get("repoKey")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim();
+    let target = if !full_name.is_empty() && full_name.contains('/') {
+        full_name.to_string()
+    } else {
+        repo_key.to_string()
+    };
+    if target.split('/').count() < 2 {
+        return json_response(
+            400,
+            json!({ "ok": false, "error": "A GitHub owner/repo name is required." }),
+        );
+    }
+    let account = payload
+        .get("account")
+        .or_else(|| payload.get("owner"))
+        .and_then(Value::as_str)
+        .unwrap_or("");
+
+    match load_repo_details(account, &target) {
+        Ok(value) => json_response(200, value),
+        Err(error) => json_response(500, json!({ "ok": false, "error": error.to_string() })),
+    }
+}
+
+fn load_repo_details(account: &str, full_name: &str) -> Result<Value> {
+    let parts = full_name.split('/').collect::<Vec<_>>();
+    if parts.len() < 2 {
+        return Err(anyhow!("invalid repository name"));
+    }
+    let owner = parts[0];
+    let name = parts[1];
+    let repo_path = format!("repos/{owner}/{name}");
+    let repo = gh_api_json(account, vec![repo_path.clone()]).unwrap_or_else(|error| {
+        json!({
+            "full_name": full_name,
+            "html_url": format!("https://github.com/{full_name}"),
+            "error": error.to_string(),
+        })
+    });
+
+    let issues = search_repo_items(account, full_name, "issue");
+    let pulls = search_repo_items(account, full_name, "pr");
+    let releases = gh_api_json(
+        account,
+        vec![
+            "--method".into(),
+            "GET".into(),
+            format!("{repo_path}/releases"),
+            "-F".into(),
+            "per_page=5".into(),
+        ],
+    )
+    .unwrap_or_else(|error| json!({ "error": error.to_string(), "items": [] }));
+    let deployments = gh_api_json(
+        account,
+        vec![
+            "--method".into(),
+            "GET".into(),
+            format!("{repo_path}/deployments"),
+            "-F".into(),
+            "per_page=5".into(),
+        ],
+    )
+    .unwrap_or_else(|error| json!({ "error": error.to_string(), "items": [] }));
+    let pages = gh_api_json(account, vec![format!("{repo_path}/pages")])
+        .map(|value| json!({ "enabled": true, "data": value }))
+        .unwrap_or_else(|error| json!({ "enabled": false, "error": error.to_string() }));
+    let packages = repo_packages_graphql(account, owner, name).unwrap_or_else(
+        |error| json!({ "totalCount": 0, "items": [], "error": error.to_string() }),
+    );
+
+    let repo_url = repo
+        .get("html_url")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .unwrap_or_else(|| format!("https://github.com/{full_name}"));
+
+    Ok(json!({
+        "ok": true,
+        "repo": {
+            "fullName": repo.get("full_name").and_then(Value::as_str).unwrap_or(full_name),
+            "url": repo_url,
+            "description": repo.get("description").and_then(Value::as_str).unwrap_or(""),
+            "defaultBranch": repo.get("default_branch").and_then(Value::as_str).unwrap_or(""),
+            "stars": repo.get("stargazers_count").and_then(Value::as_u64).unwrap_or(0),
+            "forks": repo.get("forks_count").and_then(Value::as_u64).unwrap_or(0),
+            "watchers": repo.get("subscribers_count").or_else(|| repo.get("watchers_count")).and_then(Value::as_u64).unwrap_or(0),
+            "openIssueTotal": repo.get("open_issues_count").and_then(Value::as_u64).unwrap_or(0),
+            "hasPages": repo.get("has_pages").and_then(Value::as_bool).unwrap_or(false),
+            "homepage": repo.get("homepage").and_then(Value::as_str).unwrap_or(""),
+        },
+        "issues": issues,
+        "pullRequests": pulls,
+        "releases": normalize_releases(releases),
+        "pages": pages,
+        "deployments": normalize_deployments(deployments, full_name),
+        "packages": packages,
+        "links": {
+            "issues": format!("{repo_url}/issues"),
+            "pullRequests": format!("{repo_url}/pulls"),
+            "releases": format!("{repo_url}/releases"),
+            "newRelease": format!("{repo_url}/releases/new"),
+            "deployments": format!("{repo_url}/deployments"),
+            "packages": format!("{repo_url}/pkgs"),
+            "pagesSettings": format!("{repo_url}/settings/pages"),
+        }
+    }))
+}
+
+fn search_repo_items(account: &str, full_name: &str, kind: &str) -> Value {
+    let query = format!("repo:{full_name} type:{kind} state:open");
+    let value = gh_api_json(
+        account,
+        vec![
+            "--method".into(),
+            "GET".into(),
+            "search/issues".into(),
+            "-f".into(),
+            format!("q={query}"),
+            "-F".into(),
+            "per_page=5".into(),
+        ],
+    )
+    .unwrap_or_else(|error| json!({ "total_count": 0, "items": [], "error": error.to_string() }));
+
+    let items = value
+        .get("items")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|item| {
+            json!({
+                "number": item.get("number").and_then(Value::as_u64).unwrap_or(0),
+                "title": item.get("title").and_then(Value::as_str).unwrap_or(""),
+                "url": item.get("html_url").and_then(Value::as_str).unwrap_or(""),
+                "updatedAt": item.get("updated_at").and_then(Value::as_str).unwrap_or(""),
+                "state": item.get("state").and_then(Value::as_str).unwrap_or(""),
+            })
+        })
+        .collect::<Vec<_>>();
+
+    json!({
+        "count": value.get("total_count").and_then(Value::as_u64).unwrap_or(0),
+        "items": items,
+        "error": value.get("error").and_then(Value::as_str).unwrap_or(""),
+    })
+}
+
+fn normalize_releases(value: Value) -> Value {
+    if let Some(error) = value.get("error").and_then(Value::as_str) {
+        return json!({ "count": 0, "items": [], "error": error });
+    }
+    let items = value
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .take(5)
+        .map(|item| {
+            json!({
+                "name": item.get("name").and_then(Value::as_str).unwrap_or(""),
+                "tagName": item.get("tag_name").and_then(Value::as_str).unwrap_or(""),
+                "url": item.get("html_url").and_then(Value::as_str).unwrap_or(""),
+                "publishedAt": item.get("published_at").and_then(Value::as_str).unwrap_or(""),
+                "draft": item.get("draft").and_then(Value::as_bool).unwrap_or(false),
+                "prerelease": item.get("prerelease").and_then(Value::as_bool).unwrap_or(false),
+            })
+        })
+        .collect::<Vec<_>>();
+    json!({ "count": items.len(), "items": items })
+}
+
+fn normalize_deployments(value: Value, full_name: &str) -> Value {
+    if let Some(error) = value.get("error").and_then(Value::as_str) {
+        return json!({ "count": 0, "items": [], "error": error });
+    }
+    let items = value
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .take(5)
+        .map(|item| {
+            json!({
+                "id": item.get("id").and_then(Value::as_u64).unwrap_or(0),
+                "environment": item.get("environment").and_then(Value::as_str).unwrap_or(""),
+                "createdAt": item.get("created_at").and_then(Value::as_str).unwrap_or(""),
+                "updatedAt": item.get("updated_at").and_then(Value::as_str).unwrap_or(""),
+                "url": format!("https://github.com/{full_name}/deployments"),
+            })
+        })
+        .collect::<Vec<_>>();
+    json!({ "count": items.len(), "items": items })
+}
+
+fn repo_packages_graphql(account: &str, owner: &str, name: &str) -> Result<Value> {
+    let query = r#"
+      query($owner: String!, $name: String!) {
+        repository(owner: $owner, name: $name) {
+          packages(first: 5) {
+            totalCount
+            nodes {
+              name
+              packageType
+              latestVersion {
+                version
+              }
+            }
+          }
+        }
+      }
+    "#;
+    let value = gh_api_json(
+        account,
+        vec![
+            "graphql".into(),
+            "-f".into(),
+            format!("query={query}"),
+            "-F".into(),
+            format!("owner={owner}"),
+            "-F".into(),
+            format!("name={name}"),
+        ],
+    )?;
+    let packages = value
+        .get("data")
+        .and_then(|data| data.get("repository"))
+        .and_then(|repo| repo.get("packages"))
+        .cloned()
+        .unwrap_or_else(|| json!({ "totalCount": 0, "nodes": [] }));
+    let items = packages
+        .get("nodes")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|item| {
+            json!({
+                "name": item.get("name").and_then(Value::as_str).unwrap_or(""),
+                "type": item.get("packageType").and_then(Value::as_str).unwrap_or(""),
+                "url": "",
+                "latestVersion": item.get("latestVersion").and_then(|version| version.get("version")).and_then(Value::as_str).unwrap_or(""),
+            })
+        })
+        .collect::<Vec<_>>();
+    Ok(json!({
+        "count": packages.get("totalCount").and_then(Value::as_u64).unwrap_or(0),
+        "items": items,
+    }))
+}
+
+fn gh_api_json(account: &str, args: Vec<String>) -> Result<Value> {
+    let mut full_args = vec!["api".to_string()];
+    full_args.extend(args);
+    let refs = full_args.iter().map(String::as_str).collect::<Vec<_>>();
+    let output = gh(account, &refs)?;
+    serde_json::from_slice(&output.stdout).context("parse gh api json")
 }
 
 fn refresh_response(body: &[u8], state: &AppState) -> HttpResponse {
@@ -740,6 +1126,8 @@ fn flatten_inventory(inventory: &Value) -> Value {
             "id": id,
             "name": name,
             "owner": remote.get("accountLogin").or_else(|| remote.get("accountAlias")).and_then(Value::as_str).unwrap_or(""),
+            "accountAlias": remote.get("accountAlias").and_then(Value::as_str).unwrap_or(""),
+            "accountLogin": remote.get("accountLogin").and_then(Value::as_str).unwrap_or(""),
             "repoKey": repo_key,
             "url": url,
             "visibility": if is_private { "private" } else { "public" },
@@ -1703,6 +2091,52 @@ fn run_with_timeout(
                 }
             }
         }
+    }
+}
+
+fn run_with_input(command: &str, args: &[&str], cwd: Option<&Path>, input: &[u8]) -> ProcOutput {
+    let mut cmd = Command::new(command);
+    cmd.args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    if let Some(cwd) = cwd {
+        cmd.current_dir(cwd);
+    }
+    configure_command(&mut cmd);
+
+    let mut child = match cmd.spawn() {
+        Ok(child) => child,
+        Err(error) => {
+            return ProcOutput {
+                status: failed_status(),
+                stdout: vec![],
+                stderr: error.to_string().into_bytes(),
+            }
+        }
+    };
+    if let Some(mut stdin) = child.stdin.take() {
+        if let Err(error) = stdin.write_all(input) {
+            let _ = child.kill();
+            let _ = child.wait();
+            return ProcOutput {
+                status: failed_status(),
+                stdout: vec![],
+                stderr: error.to_string().into_bytes(),
+            };
+        }
+    }
+    match child.wait_with_output() {
+        Ok(output) => ProcOutput {
+            status: output.status,
+            stdout: output.stdout,
+            stderr: output.stderr,
+        },
+        Err(error) => ProcOutput {
+            status: failed_status(),
+            stdout: vec![],
+            stderr: error.to_string().into_bytes(),
+        },
     }
 }
 
