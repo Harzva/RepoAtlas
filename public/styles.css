@@ -976,6 +976,13 @@ h3 {
   white-space: nowrap;
 }
 
+.badge-stack {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+}
+
 .badge.public,
 .badge.synced {
   color: var(--green);

@@ -163,10 +163,29 @@ function statusBadge(status) {
   return `<span class="badge ${escapeHtml(clean)}">${escapeHtml(statusLabel(clean))}</span>`;
 }
 
-function categoryBadge(repo) {
-  const category = repo.category || "other";
-  const label = repo.categoryLabel || categoryLabels[category] || category;
-  return `<span class="badge category-${escapeHtml(category)}">${escapeHtml(label)}</span>`;
+function categoryItems(repo) {
+  const categories = asArray(repo.categories).length ? asArray(repo.categories) : [repo.category || "other"];
+  const labels = asArray(repo.categoryLabels).length ? asArray(repo.categoryLabels) : [repo.categoryLabel || categoryLabels[categories[0]] || categories[0]];
+  return categories.map((category, index) => ({
+    category: category || "other",
+    label: labels[index] || categoryLabels[category] || category,
+  }));
+}
+
+function categoryText(repo) {
+  return categoryItems(repo)
+    .map((item) => item.label)
+    .join(" / ");
+}
+
+function categoryBadges(repo) {
+  return `<span class="badge-stack">${categoryItems(repo)
+    .map((item) => `<span class="badge category-${escapeHtml(item.category)}">${escapeHtml(item.label)}</span>`)
+    .join("")}</span>`;
+}
+
+function hasCategory(repo, category) {
+  return categoryItems(repo).some((item) => item.category === category);
 }
 
 function visibilityBadge(repo) {
@@ -451,7 +470,7 @@ function renderMetrics() {
   const metrics = [
     ["Remote repos", state.summary.remoteCount],
     ["Accounts", accountCount],
-    ["Categories", categoryCount],
+    ["Tags", categoryCount],
     ["Local Git", state.summary.localRepoCount],
     ["Matched", state.summary.matchedRemoteCount],
     ["Missing", missingCount],
@@ -485,7 +504,7 @@ function renderMatched() {
         <article class="matched-card">
           <button class="plain-select" type="button" data-select-repo="${escapeHtml(repo.id)}" title="${escapeHtml(repo.name)}">
             <span class="matched-title">${escapeHtml(repo.name)}</span>
-            <span class="matched-meta">${escapeHtml(repo.categoryLabel || "Other")} - ${escapeHtml(statusText)} - ${formatNumber(repo.localMatchCount)} path${repo.localMatchCount === 1 ? "" : "s"}</span>
+            <span class="matched-meta">${escapeHtml(categoryText(repo))} - ${escapeHtml(statusText)} - ${formatNumber(repo.localMatchCount)} path${repo.localMatchCount === 1 ? "" : "s"}</span>
           </button>
           ${
             firstPath
@@ -510,6 +529,10 @@ function filteredRows() {
       repo.owner,
       repo.category,
       repo.categoryLabel,
+      categoryText(repo),
+      categoryItems(repo)
+        .map((item) => item.category)
+        .join(" "),
       repo.language,
       repo.defaultBranch,
       localPaths.join(" "),
@@ -519,7 +542,7 @@ function filteredRows() {
       .toLowerCase();
     if (query && !searchable.includes(query)) return false;
 
-    if (state.filters.category !== "all" && repo.category !== state.filters.category) return false;
+    if (state.filters.category !== "all" && !hasCategory(repo, state.filters.category)) return false;
     if (state.filters.status === "local" && repo.localMatchCount === 0) return false;
     if (state.filters.status === "dirty" && !localMatches.some((match) => match.dirty)) return false;
     if (
@@ -551,7 +574,7 @@ function renderRepoTable() {
     <div class="table-header" role="row">
       <span>Repository</span>
       <span>Account</span>
-      <span>Category</span>
+      <span>Tags</span>
       <span>Status</span>
       <span>Language</span>
       <span>Pushed</span>
@@ -566,7 +589,7 @@ function renderRepoTable() {
             <span class="repo-description">${escapeHtml(repo.description || repo.url)}</span>
           </span>
           <span class="mono">${escapeHtml(repo.owner || "current")}</span>
-          <span>${categoryBadge(repo)}</span>
+          <span>${categoryBadges(repo)}</span>
           <span>${statusBadge(repo.localStatus)}</span>
           <span class="mono">${escapeHtml(repo.language || "none")}</span>
           <span class="mono">${escapeHtml(formatDateShort(repo.pushedAt))}</span>
@@ -616,7 +639,7 @@ function renderDetails() {
 
   elements.detailPanel.innerHTML = `
     <div class="detail-title">
-      <div>${visibilityBadge(repo)} ${categoryBadge(repo)} ${repo.isFork ? '<span class="badge">Fork</span>' : '<span class="badge">Source</span>'} ${statusBadges}</div>
+      <div>${visibilityBadge(repo)} ${categoryBadges(repo)} ${repo.isFork ? '<span class="badge">Fork</span>' : '<span class="badge">Source</span>'} ${statusBadges}</div>
       <h3>${escapeHtml(repo.name)}</h3>
       <p class="detail-description">${escapeHtml(repo.description || "No description")}</p>
     </div>
@@ -638,7 +661,7 @@ function renderDetails() {
 
     <div class="detail-grid">
       <div class="detail-kv"><span>Account</span><strong>${escapeHtml(repo.owner || "current")}</strong></div>
-      <div class="detail-kv"><span>Category</span><strong>${escapeHtml(repo.categoryLabel || "Other")}</strong></div>
+      <div class="detail-kv"><span>Categories</span><strong>${escapeHtml(categoryText(repo))}</strong></div>
       <div class="detail-kv"><span>Language</span><strong>${escapeHtml(repo.language || "none")}</strong></div>
       <div class="detail-kv"><span>Default branch</span><strong>${escapeHtml(repo.defaultBranch || "none")}</strong></div>
       <div class="detail-kv"><span>Last pushed</span><strong>${escapeHtml(formatDate(repo.pushedAt) || "none")}</strong></div>
@@ -669,7 +692,7 @@ function renderLocalOnly() {
             <span class="repo-description">${escapeHtml(local.path)}</span>
             <span class="repo-description">${escapeHtml(remoteText || "no remote")}</span>
           </span>
-          <span>${categoryBadge(local)}</span>
+          <span>${categoryBadges(local)}</span>
           <span>${statusBadge(local.dirty ? "dirty" : local.status)}</span>
           <span class="mono">${escapeHtml(local.branch || "none")}</span>
           <button class="icon-button" type="button" data-open-path="${escapeHtml(local.path)}" title="Open local folder" aria-label="Open local folder">${icons.folder}</button>

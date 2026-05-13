@@ -342,17 +342,7 @@ fn refresh_response(body: &[u8], state: &AppState) -> HttpResponse {
         .and_then(Value::as_u64)
         .map(|value| value as usize)
         .unwrap_or_else(default_max_depth);
-    let scan_roots = payload
-        .get("scanRoots")
-        .and_then(Value::as_array)
-        .map(|roots| {
-            roots
-                .iter()
-                .filter_map(Value::as_str)
-                .map(PathBuf::from)
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_else(default_scan_roots);
+    let scan_roots = request_scan_roots(&payload);
 
     match scan_inventory(&accounts, &scan_roots, max_depth, fetch).and_then(|inventory| {
         write_inventory(&state.inventory_path, &inventory)?;
@@ -410,6 +400,35 @@ fn split_accounts(raw: &str) -> Vec<String> {
     raw.split(|ch: char| matches!(ch, '\n' | '\r' | ';' | ','))
         .filter_map(normalize_account_name)
         .collect()
+}
+
+fn request_scan_roots(payload: &Value) -> Vec<PathBuf> {
+    let requested = payload
+        .get("scanRoots")
+        .and_then(Value::as_array)
+        .map(|roots| {
+            roots
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(PathBuf::from)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    merge_scan_roots(requested, default_scan_roots())
+}
+
+fn merge_scan_roots(primary: Vec<PathBuf>, fallback: Vec<PathBuf>) -> Vec<PathBuf> {
+    let mut seen = BTreeSet::new();
+    let mut roots = Vec::new();
+    for root in primary.into_iter().chain(fallback) {
+        let key = normalize_path_key(&root);
+        if seen.insert(key) {
+            roots.push(root);
+        }
+    }
+    roots
 }
 
 fn normalize_account_name(value: &str) -> Option<String> {
@@ -698,9 +717,16 @@ fn flatten_inventory(inventory: &Value) -> Value {
             .get("description")
             .and_then(Value::as_str)
             .unwrap_or("");
-        let category = classify_repo(name, description, &local_path_text);
+        let categories = classify_repo_categories(name, description, &local_path_text);
+        let category = primary_category(&categories);
         let category_label = category_label(&category);
-        *category_counts.entry(category.clone()).or_insert(0) += 1;
+        let category_labels = categories
+            .iter()
+            .map(|category| Value::from(category_label(category)))
+            .collect::<Vec<_>>();
+        for category in &categories {
+            *category_counts.entry(category.clone()).or_insert(0) += 1;
+        }
         let repo_key = remote.get("repoKey").and_then(Value::as_str).unwrap_or("");
         let id = if repo_key.is_empty() {
             format!("{name}{index}")
@@ -727,6 +753,8 @@ fn flatten_inventory(inventory: &Value) -> Value {
             "description": description,
             "category": category,
             "categoryLabel": category_label,
+            "categories": categories,
+            "categoryLabels": category_labels,
             "localStatus": local_status,
             "localStatusList": local_status_list,
             "localMatchCount": matches.len(),
@@ -759,8 +787,13 @@ fn flatten_inventory(inventory: &Value) -> Value {
                         .join(" ")
                 })
                 .unwrap_or_default();
-            let category = classify_repo(&remote_text, path, &local_context);
+            let categories = classify_repo_categories(&remote_text, path, &local_context);
+            let category = primary_category(&categories);
             let category_label = category_label(&category);
+            let category_labels = categories
+                .iter()
+                .map(|category| Value::from(category_label(category)))
+                .collect::<Vec<_>>();
             json!({
                 "id": format!("local-only-{index}"),
                 "path": path,
@@ -768,6 +801,8 @@ fn flatten_inventory(inventory: &Value) -> Value {
                 "status": local.get("status").and_then(Value::as_str).unwrap_or("unknown"),
                 "category": category,
                 "categoryLabel": category_label,
+                "categories": categories,
+                "categoryLabels": category_labels,
                 "head": local.get("head").and_then(Value::as_str).unwrap_or(""),
                 "upstream": local.get("upstream").and_then(Value::as_str).unwrap_or(""),
                 "upstreamSha": local.get("upstreamSha").and_then(Value::as_str).unwrap_or(""),
@@ -862,8 +897,15 @@ fn legacy_accounts(inventory: &Value) -> Value {
 }
 
 fn classify_repo(name: &str, description: &str, local_paths: &[String]) -> String {
+    primary_category(&classify_repo_categories(name, description, local_paths))
+}
+
+fn classify_repo_categories(name: &str, description: &str, local_paths: &[String]) -> Vec<String> {
     let haystack =
         format!("{} {} {}", name, description, local_paths.join(" ")).to_ascii_lowercase();
+    let name_paths = format!("{} {}", name, local_paths.join(" ")).to_ascii_lowercase();
+    let description = description.to_ascii_lowercase();
+    let mut categories = Vec::new();
 
     if contains_any(
         &haystack,
@@ -877,19 +919,30 @@ fn classify_repo(name: &str, description: &str, local_paths: &[String]) -> Strin
             "connector",
         ],
     ) {
-        return "mcp".into();
+        categories.push("mcp".to_string());
     }
     if contains_any(
-        &haystack,
+        &name_paths,
         &[
-            "skill",
             "skills",
             "codex-skill",
+            "codex-skills",
+            "agent-skill",
+            "agent-skills",
             "agents/skills",
             ".codex/skills",
         ],
+    ) || contains_any(
+        &description,
+        &[
+            "codex skill",
+            "codex skills",
+            "agent skill pack",
+            "skill pack",
+            "skill repository",
+        ],
     ) {
-        return "skills".into();
+        categories.push("skills".to_string());
     }
     if contains_any(
         &haystack,
@@ -902,7 +955,7 @@ fn classify_repo(name: &str, description: &str, local_paths: &[String]) -> Strin
             "obsidian",
         ],
     ) {
-        return "memory".into();
+        categories.push("memory".to_string());
     }
     if contains_any(
         &haystack,
@@ -918,7 +971,7 @@ fn classify_repo(name: &str, description: &str, local_paths: &[String]) -> Strin
             "webview",
         ],
     ) {
-        return "software".into();
+        categories.push("software".to_string());
     }
     if contains_any(
         &haystack,
@@ -932,7 +985,7 @@ fn classify_repo(name: &str, description: &str, local_paths: &[String]) -> Strin
             "course",
         ],
     ) {
-        return "docs".into();
+        categories.push("docs".to_string());
     }
     if contains_any(
         &haystack,
@@ -940,13 +993,13 @@ fn classify_repo(name: &str, description: &str, local_paths: &[String]) -> Strin
             "action", "workflow", "docker", "deploy", "pipeline", "ci", "router", "config",
         ],
     ) {
-        return "infra".into();
+        categories.push("infra".to_string());
     }
     if contains_any(
         &haystack,
         &["dataset", "corpus", "benchmark", "data", "csv", "jsonl"],
     ) {
-        return "data".into();
+        categories.push("data".to_string());
     }
     if contains_any(
         &haystack,
@@ -961,12 +1014,30 @@ fn classify_repo(name: &str, description: &str, local_paths: &[String]) -> Strin
             "agent",
         ],
     ) {
-        return "research".into();
+        categories.push("research".to_string());
     }
     if contains_any(&haystack, &["game", "tic-tac-toe", "chess", "puzzle"]) {
-        return "games".into();
+        categories.push("games".to_string());
     }
-    "other".into()
+    if categories.is_empty() {
+        categories.push("other".to_string());
+    }
+    unique_owned_strings(categories)
+}
+
+fn unique_owned_strings(values: Vec<String>) -> Vec<String> {
+    let mut seen = BTreeSet::new();
+    values
+        .into_iter()
+        .filter(|value| seen.insert(value.clone()))
+        .collect()
+}
+
+fn primary_category(categories: &[String]) -> String {
+    categories
+        .first()
+        .cloned()
+        .unwrap_or_else(|| "other".to_string())
 }
 
 fn category_label(category: &str) -> &'static str {
@@ -1023,7 +1094,15 @@ fn default_scan_roots() -> Vec<PathBuf> {
         return env::split_paths(&raw).collect();
     }
     let mut roots = BTreeSet::new();
-    roots.insert(env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+    let current_dir = env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    roots.insert(current_dir.clone());
+    for ancestor in current_dir
+        .ancestors()
+        .take(4)
+        .filter(|ancestor| ancestor.parent().is_some())
+    {
+        roots.insert(ancestor.to_path_buf());
+    }
     if let Some(home) = env::var_os("USERPROFILE").or_else(|| env::var_os("HOME")) {
         let home = PathBuf::from(home);
         for candidate in [
@@ -1035,6 +1114,14 @@ fn default_scan_roots() -> Vec<PathBuf> {
             if candidate.exists() {
                 roots.insert(candidate);
             }
+        }
+    }
+    for candidate in [
+        PathBuf::from(r"D:\study\code"),
+        PathBuf::from(r"D:\study\code\0ai\产品"),
+    ] {
+        if candidate.exists() {
+            roots.insert(candidate);
         }
     }
     roots.into_iter().collect()
@@ -1730,7 +1817,7 @@ fn render_csv(inventory: &Value) -> String {
     let headers = [
         "Repository",
         "Account",
-        "Category",
+        "Tags",
         "URL",
         "Visibility",
         "Fork",
@@ -1776,10 +1863,7 @@ fn render_csv(inventory: &Value) -> String {
                 .and_then(Value::as_str)
                 .unwrap_or("")
                 .to_string(),
-            repo.get("categoryLabel")
-                .and_then(Value::as_str)
-                .unwrap_or("")
-                .to_string(),
+            repo_category_labels(&repo),
             repo.get("url")
                 .and_then(Value::as_str)
                 .unwrap_or("")
@@ -1850,7 +1934,7 @@ fn render_markdown(inventory: &Value) -> String {
             summary.get("remoteCount").and_then(Value::as_u64).unwrap_or(0)
         ),
         "".into(),
-        "| Repository | Account | Category | Visibility | Fork | Language | Default branch | Local status | Last pushed | Description |".into(),
+        "| Repository | Account | Tags | Visibility | Fork | Language | Default branch | Local status | Last pushed | Description |".into(),
         "|---|---|---|---|---:|---|---|---|---|---|".into(),
     ];
     for repo in rows {
@@ -1876,11 +1960,7 @@ fn render_markdown(inventory: &Value) -> String {
             "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |",
             link,
             md_cell(repo.get("owner").and_then(Value::as_str).unwrap_or("")),
-            md_cell(
-                repo.get("categoryLabel")
-                    .and_then(Value::as_str)
-                    .unwrap_or("")
-            ),
+            md_cell(&repo_category_labels(&repo)),
             md_cell(repo.get("visibility").and_then(Value::as_str).unwrap_or("")),
             yes_no(repo.get("isFork").and_then(Value::as_bool).unwrap_or(false)),
             md_cell(
@@ -1924,6 +2004,25 @@ fn csv_cell(value: &str) -> String {
 
 fn md_cell(value: &str) -> String {
     value.replace(['\r', '\n'], " ").replace('|', "\\|")
+}
+
+fn repo_category_labels(repo: &Value) -> String {
+    repo.get("categoryLabels")
+        .and_then(Value::as_array)
+        .map(|values| {
+            values
+                .iter()
+                .filter_map(Value::as_str)
+                .collect::<Vec<_>>()
+                .join("; ")
+        })
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| {
+            repo.get("categoryLabel")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string()
+        })
 }
 
 fn open_path(path: &Path) -> Result<()> {
@@ -2005,6 +2104,40 @@ mod tests {
     }
 
     #[test]
+    fn classify_allows_multiple_categories_without_generic_skill_false_positive() {
+        let campus = classify_repo_categories(
+            "Harzva/CampusAgent-QA",
+            "Agentic campus QA system with RAG Wiki memory, and GBrain skills",
+            &[],
+        );
+        assert!(campus.contains(&"memory".to_string()));
+        assert!(campus.contains(&"research".to_string()));
+        assert!(!campus.contains(&"skills".to_string()));
+
+        let mcp_memory = classify_repo_categories(
+            "owner/local-mcp-server",
+            "Model context protocol server with vector memory",
+            &[],
+        );
+        assert!(mcp_memory.contains(&"mcp".to_string()));
+        assert!(mcp_memory.contains(&"memory".to_string()));
+    }
+
+    #[test]
+    fn scan_roots_merge_requested_and_defaults() {
+        let roots = merge_scan_roots(
+            vec![PathBuf::from("D:\\study\\code")],
+            vec![
+                PathBuf::from("D:\\study\\code"),
+                PathBuf::from("D:\\study\\code\\0ai\\产品"),
+            ],
+        );
+        assert_eq!(roots.len(), 2);
+        assert_eq!(roots[0], PathBuf::from("D:\\study\\code"));
+        assert_eq!(roots[1], PathBuf::from("D:\\study\\code\\0ai\\产品"));
+    }
+
+    #[test]
     fn flatten_inventory_keeps_remote_rows_visible() {
         let inventory = json!({
             "generatedAt": "2026-05-13T00:00:00Z",
@@ -2068,6 +2201,13 @@ mod tests {
         assert_eq!(
             rows[0].get("category").and_then(Value::as_str),
             Some("skills")
+        );
+        assert_eq!(
+            rows[0]
+                .get("categories")
+                .and_then(Value::as_array)
+                .map(Vec::len),
+            Some(1)
         );
         assert_eq!(rows[1].get("category").and_then(Value::as_str), Some("mcp"));
     }
