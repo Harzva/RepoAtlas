@@ -52,5 +52,8 @@ jobs:
       - name: Check Rust build graph
         run: cargo check --locked
 
+      - name: Run regression tests
+        run: cargo test --locked
+
       - name: Check dashboard JavaScript
         run: node --check public/app.js

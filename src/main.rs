@@ -305,10 +305,22 @@ fn request_accounts(payload: &Value) -> Vec<String> {
 
 fn split_accounts(raw: &str) -> Vec<String> {
     raw.split(|ch: char| matches!(ch, '\n' | '\r' | ';' | ','))
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(str::to_string)
+        .filter_map(normalize_account_name)
         .collect()
+}
+
+fn normalize_account_name(value: &str) -> Option<String> {
+    let clean = value.trim();
+    if clean.is_empty() {
+        return None;
+    }
+    match clean.to_ascii_lowercase().as_str() {
+        "current" | "current gh" | "current gh login" | "default" | "active gh" => {
+            Some(String::new())
+        }
+        "leave empty for current gh login" => None,
+        _ => Some(clean.to_string()),
+    }
 }
 
 fn unique_account_names(values: Vec<String>) -> Vec<String> {
@@ -1751,4 +1763,36 @@ fn open_external_url(url: &str) -> Result<()> {
             .context("open url")?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn request_accounts_keeps_current_and_multiple_aliases() {
+        let payload = json!({
+            "accounts": ["current gh login", "Harzva\nsaihao", "harzva"]
+        });
+        assert_eq!(
+            request_accounts(&payload),
+            vec!["".to_string(), "Harzva".to_string(), "saihao".to_string()]
+        );
+    }
+
+    #[test]
+    fn classify_context_categories() {
+        assert_eq!(
+            classify_repo("owner/agent-skills", "Codex skill pack", &[]),
+            "skills"
+        );
+        assert_eq!(
+            classify_repo("owner/local-mcp-server", "Model context protocol", &[]),
+            "mcp"
+        );
+        assert_eq!(
+            classify_repo("owner/memory-bank", "RAG knowledge store", &[]),
+            "memory"
+        );
+    }
 }

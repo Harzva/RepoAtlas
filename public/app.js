@@ -62,6 +62,7 @@ const elements = {
   maxDepthInput: document.querySelector("#maxDepthInput"),
   generatedAt: document.querySelector("#generatedAt"),
   accountChips: document.querySelector("#accountChips"),
+  errorBanner: document.querySelector("#errorBanner"),
   metricsGrid: document.querySelector("#metricsGrid"),
   matchedCount: document.querySelector("#matchedCount"),
   matchedList: document.querySelector("#matchedList"),
@@ -142,6 +143,20 @@ function showToast(message) {
   toastTimer = window.setTimeout(() => elements.toast.classList.remove("show"), 2600);
 }
 
+function showError(message) {
+  if (!message) {
+    clearError();
+    return;
+  }
+  elements.errorBanner.textContent = message;
+  elements.errorBanner.hidden = false;
+}
+
+function clearError() {
+  elements.errorBanner.textContent = "";
+  elements.errorBanner.hidden = true;
+}
+
 function parseScanRoots() {
   return elements.scanRootsInput.value
     .split(/\r?\n|;/)
@@ -149,11 +164,20 @@ function parseScanRoots() {
     .filter(Boolean);
 }
 
+function normalizeAccountInput(value) {
+  const clean = String(value || "").trim();
+  if (!clean) return null;
+  const lower = clean.toLowerCase();
+  if (["current", "current gh", "current gh login", "default", "active gh"].includes(lower)) return "";
+  if (lower === "leave empty for current gh login") return null;
+  return clean;
+}
+
 function parseAccounts() {
   return elements.accountsInput.value
     .split(/\r?\n|;|,/)
-    .map((value) => value.trim())
-    .filter(Boolean)
+    .map(normalizeAccountInput)
+    .filter((value) => value !== null)
     .filter((value, index, values) => values.findIndex((item) => item.toLowerCase() === value.toLowerCase()) === index);
 }
 
@@ -184,6 +208,11 @@ async function loadInventory() {
   const response = await fetch("/api/inventory", { cache: "no-store" });
   if (!response.ok) throw new Error(`inventory ${response.status}`);
   const data = await response.json();
+  if (data.ok === false && data.error) {
+    showError(data.error);
+  } else {
+    clearError();
+  }
   state.summary = data.summary || {};
   state.rows = asArray(data.rows);
   state.localOnly = asArray(data.localOnly);
@@ -193,6 +222,17 @@ async function loadInventory() {
   }
   hydrateScanControls();
   render();
+  if (shouldAutoRefresh()) {
+    window.sessionStorage.setItem("repo-atlas-auto-refresh", "1");
+    await refreshInventory({ automatic: true });
+  }
+}
+
+function shouldAutoRefresh() {
+  if (window.sessionStorage.getItem("repo-atlas-auto-refresh")) return false;
+  const hasRows = state.rows.length > 0 || state.localOnly.length > 0;
+  const hasCounts = (state.summary.remoteCount || 0) > 0 || (state.summary.localRepoCount || 0) > 0;
+  return !hasRows && !hasCounts && !state.summary.generatedAt;
 }
 
 function render() {
@@ -548,8 +588,7 @@ elements.themeButtons.addEventListener("click", (event) => {
   applyTheme(button.dataset.theme);
 });
 
-elements.refreshButton.addEventListener("click", async () => {
-  const previousTitle = elements.refreshButton.title;
+function buildRefreshPayload() {
   const roots = parseScanRoots();
   const maxDepth = Number.parseInt(elements.maxDepthInput.value, 10);
   const payload = {
@@ -563,10 +602,17 @@ elements.refreshButton.addEventListener("click", async () => {
   if (roots.length) {
     payload.scanRoots = roots;
   }
+  return payload;
+}
+
+async function refreshInventory({ automatic = false } = {}) {
+  const previousTitle = elements.refreshButton.title;
+  const payload = buildRefreshPayload();
 
   elements.refreshButton.disabled = true;
   elements.refreshButton.title = "Scanning";
-  showToast("Scanning GitHub and local Git folders...");
+  clearError();
+  showToast(automatic ? "Inventory is empty, scanning automatically..." : "Scanning GitHub and local Git folders...");
   try {
     const response = await fetch("/api/refresh", {
       method: "POST",
@@ -578,6 +624,10 @@ elements.refreshButton.addEventListener("click", async () => {
     state.summary = data.summary || {};
     state.rows = asArray(data.rows);
     state.localOnly = asArray(data.localOnly);
+    const accountErrors = asArray(state.summary.accountErrors);
+    if (accountErrors.length) {
+      showError(accountErrors.map((item) => `${item.alias || "account"}: ${item.error}`).join(" | "));
+    }
     if (!state.rows.some((repo) => repo.id === state.selectedId)) {
       const firstLocal = state.rows.find((repo) => repo.localMatchCount > 0);
       state.selectedId = (firstLocal || state.rows[0] || {}).id || "";
@@ -585,11 +635,16 @@ elements.refreshButton.addEventListener("click", async () => {
     render();
     showToast("Scan complete");
   } catch (error) {
+    showError(error.message);
     showToast(error.message);
   } finally {
     elements.refreshButton.disabled = false;
     elements.refreshButton.title = previousTitle;
   }
+}
+
+elements.refreshButton.addEventListener("click", async () => {
+  await refreshInventory();
 });
 
 document.addEventListener("click", async (event) => {

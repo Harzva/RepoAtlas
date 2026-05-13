@@ -1,19 +1,19 @@
-# RepoAtlas v0.3.0
+# RepoAtlas v0.3.1
 
-Multi-account context release.
+Regression fix for empty first-run inventories.
 
-## Highlights
+## Fixes
 
-- Added multi-account scanning with `accounts[]`, `REPO_ATLAS_ACCOUNTS`, and newline/comma/semicolon parsing in the UI.
-- Added automatic repository categories: Skills, MCP, Memory, Software, Docs, Infra, Data, Research, Games, and Other.
-- Redesigned the dashboard with a custom RepoAtlas logo, account chips, category filters, and four themes: Atlas, Midnight, Paper, and Aurora.
-- Added a custom window icon so the desktop app no longer uses the default titlebar mark.
-- Added macOS release packaging in GitHub Actions alongside the Windows portable exe.
-- Updated CSV and Markdown exports with account and category columns.
-- Refreshed README and GitHub Pages positioning for a generic, reusable RepoAtlas project.
+- Automatically starts a refresh when the embedded inventory is still empty, so a fresh install does not sit at `0` repositories until the user guesses the next step.
+- Shows refresh and account errors as a persistent in-page banner instead of only a short toast.
+- Treats `current gh login`, `current`, and similar account text as the active GitHub CLI login, preventing the helper text from becoming a broken account alias.
+- Clarifies the account input placeholder: leave it empty for the current `gh` login, or enter multiple accounts such as `Harzva` and `saihao` on separate lines.
+- Adds regression tests for multi-account parsing and category inference in CI.
 
-## Requirements for live rescans
+## Included from v0.3.0
 
-- Git
-- GitHub CLI `gh`
-- `gh auth login` completed for each account you want to scan, or a local account-router alias configured for that environment
+- Multi-account scanning with `accounts[]`, `REPO_ATLAS_ACCOUNTS`, and newline/comma/semicolon parsing.
+- Automatic repository categories: Skills, MCP, Memory, Software, Docs, Infra, Data, Research, Games, and Other.
+- Custom RepoAtlas logo, account chips, category filters, and four themes: Atlas, Midnight, Paper, and Aurora.
+- Custom desktop window icon.
+- Windows and macOS release packaging through GitHub Actions.
