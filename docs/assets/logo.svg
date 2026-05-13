@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="RepoAtlas logo">
+  <defs>
+    <linearGradient id="bg" x1="18" y1="10" x2="112" y2="118" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1b2630"/>
+      <stop offset=".48" stop-color="#0f4f55"/>
+      <stop offset="1" stop-color="#f2c04e"/>
+    </linearGradient>
+    <linearGradient id="tile" x1="28" y1="25" x2="94" y2="101" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f8fbf3"/>
+      <stop offset="1" stop-color="#bdf1e8"/>
+    </linearGradient>
+  </defs>
+  <circle cx="64" cy="64" r="58" fill="url(#bg)"/>
+  <circle cx="64" cy="64" r="53" fill="none" stroke="#f8fbf3" stroke-width="5"/>
+  <path d="M35 47h58M35 66h58M35 85h58M45 36v61M64 28v72M83 36v61" fill="none" stroke="#f8fbf3" stroke-opacity=".2" stroke-width="3"/>
+  <path d="M36 42h27v27H36zM65 32h27v27H65zM65 70h27v27H65z" fill="url(#tile)" stroke="#f8fbf3" stroke-width="4"/>
+  <path d="m49 55 16-10 14 18-13 21" fill="none" stroke="#132328" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="m49 55 16-10 14 18-13 21" fill="none" stroke="#75e0c3" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="49" cy="55" r="7" fill="#f2c04e" stroke="#132328" stroke-width="4"/>
+  <circle cx="65" cy="45" r="7" fill="#f8fbf3" stroke="#132328" stroke-width="4"/>
+  <circle cx="79" cy="63" r="7" fill="#e65a45" stroke="#132328" stroke-width="4"/>
+  <circle cx="66" cy="84" r="7" fill="#42c3b5" stroke="#132328" stroke-width="4"/>
+</svg>

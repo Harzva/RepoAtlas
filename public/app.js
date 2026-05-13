@@ -5,6 +5,7 @@ const state = {
   filters: {
     search: "",
     status: "all",
+    category: "all",
     visibility: "all",
     fork: "all",
     sort: "pushed-desc",
@@ -23,6 +24,19 @@ const labels = {
   unknown: "Unknown",
 };
 
+const categoryLabels = {
+  skills: "Skills",
+  mcp: "MCP",
+  memory: "Memory",
+  software: "Software",
+  docs: "Docs",
+  infra: "Infra",
+  data: "Data",
+  research: "Research",
+  games: "Games",
+  other: "Other",
+};
+
 const icons = {
   folder:
     '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6.5A2.5 2.5 0 0 1 5.5 4H10l2 2h6.5A2.5 2.5 0 0 1 21 8.5v8A3.5 3.5 0 0 1 17.5 20h-11A3.5 3.5 0 0 1 3 16.5v-10Zm2 2v8A1.5 1.5 0 0 0 6.5 18h11a1.5 1.5 0 0 0 1.5-1.5v-8A.5.5 0 0 0 18.5 8h-7.3l-2-2H5.5a.5.5 0 0 0-.5.5Z"/></svg>',
@@ -37,14 +51,17 @@ const icons = {
 const elements = {
   searchInput: document.querySelector("#searchInput"),
   statusFilters: document.querySelector("#statusFilters"),
-  accountInput: document.querySelector("#accountInput"),
+  categoryFilters: document.querySelector("#categoryFilters"),
+  accountsInput: document.querySelector("#accountsInput"),
   visibilityFilters: document.querySelector("#visibilityFilters"),
   forkFilters: document.querySelector("#forkFilters"),
+  themeButtons: document.querySelector("#themeButtons"),
   sortSelect: document.querySelector("#sortSelect"),
   scanRootsInput: document.querySelector("#scanRootsInput"),
   fetchToggle: document.querySelector("#fetchToggle"),
   maxDepthInput: document.querySelector("#maxDepthInput"),
   generatedAt: document.querySelector("#generatedAt"),
+  accountChips: document.querySelector("#accountChips"),
   metricsGrid: document.querySelector("#metricsGrid"),
   matchedCount: document.querySelector("#matchedCount"),
   matchedList: document.querySelector("#matchedList"),
@@ -108,6 +125,12 @@ function statusBadge(status) {
   return `<span class="badge ${escapeHtml(clean)}">${escapeHtml(statusLabel(clean))}</span>`;
 }
 
+function categoryBadge(repo) {
+  const category = repo.category || "other";
+  const label = repo.categoryLabel || categoryLabels[category] || category;
+  return `<span class="badge category-${escapeHtml(category)}">${escapeHtml(label)}</span>`;
+}
+
 function visibilityBadge(repo) {
   return `<span class="badge ${repo.visibility}">${repo.isPrivate ? "Private" : "Public"}</span>`;
 }
@@ -126,6 +149,14 @@ function parseScanRoots() {
     .filter(Boolean);
 }
 
+function parseAccounts() {
+  return elements.accountsInput.value
+    .split(/\r?\n|;|,/)
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .filter((value, index, values) => values.findIndex((item) => item.toLowerCase() === value.toLowerCase()) === index);
+}
+
 function hydrateScanControls() {
   const roots = asArray(state.summary.scanRoots)
     .map(String)
@@ -136,9 +167,16 @@ function hydrateScanControls() {
   if (typeof state.summary.versionCheckUsedFetch === "boolean") {
     elements.fetchToggle.checked = state.summary.versionCheckUsedFetch;
   }
-  const account = state.summary.accountAlias || state.summary.accountLogin || "";
-  if (account && !elements.accountInput.value.trim()) {
-    elements.accountInput.value = account;
+  const accounts = asArray(state.summary.accounts)
+    .map((account) => account.alias || account.login)
+    .filter(Boolean);
+  const fallbackAccount = state.summary.accountAlias || state.summary.accountLogin || "";
+  if (!elements.accountsInput.value.trim()) {
+    if (accounts.length) {
+      elements.accountsInput.value = accounts.join("\n");
+    } else if (fallbackAccount) {
+      elements.accountsInput.value = fallbackAccount.split(/\s*,\s*/).filter(Boolean).join("\n");
+    }
   }
 }
 
@@ -161,6 +199,7 @@ function render() {
   elements.generatedAt.textContent = state.summary.generatedAt
     ? `Generated ${formatDate(state.summary.generatedAt)}`
     : "Inventory";
+  renderAccountChips();
   renderMetrics();
   renderMatched();
   renderRepoTable();
@@ -168,15 +207,32 @@ function render() {
   renderLocalOnly();
 }
 
+function renderAccountChips() {
+  const accounts = asArray(state.summary.accounts);
+  const chips = accounts
+    .map((account) => {
+      const label = account.alias || account.login || "current gh";
+      const count = typeof account.repoCount === "number" ? ` - ${formatNumber(account.repoCount)}` : "";
+      return `<span>${escapeHtml(label)}${escapeHtml(count)}</span>`;
+    })
+    .join("");
+  const errors = asArray(state.summary.accountErrors)
+    .map((item) => `<span class="warning">${escapeHtml(item.alias || "account")} failed</span>`)
+    .join("");
+  elements.accountChips.innerHTML = chips || errors ? chips + errors : "<span>current gh login</span>";
+}
+
 function renderMetrics() {
   const missingCount = Math.max((state.summary.remoteCount || 0) - (state.summary.matchedRemoteCount || 0), 0);
+  const accountCount = asArray(state.summary.accounts).length || (state.summary.accountLogin ? 1 : 0);
+  const categoryCount = Object.keys(state.summary.categoryCounts || {}).length;
   const metrics = [
     ["Remote repos", state.summary.remoteCount],
+    ["Accounts", accountCount],
+    ["Categories", categoryCount],
     ["Local Git", state.summary.localRepoCount],
     ["Matched", state.summary.matchedRemoteCount],
     ["Missing", missingCount],
-    ["Private", state.summary.privateCount],
-    ["Forks", state.summary.forkCount],
   ];
 
   elements.metricsGrid.innerHTML = metrics
@@ -207,7 +263,7 @@ function renderMatched() {
         <article class="matched-card">
           <button class="plain-select" type="button" data-select-repo="${escapeHtml(repo.id)}" title="${escapeHtml(repo.name)}">
             <span class="matched-title">${escapeHtml(repo.name)}</span>
-            <span class="matched-meta">${escapeHtml(statusText)} - ${formatNumber(repo.localMatchCount)} path${repo.localMatchCount === 1 ? "" : "s"}</span>
+            <span class="matched-meta">${escapeHtml(repo.categoryLabel || "Other")} - ${escapeHtml(statusText)} - ${formatNumber(repo.localMatchCount)} path${repo.localMatchCount === 1 ? "" : "s"}</span>
           </button>
           ${
             firstPath
@@ -229,6 +285,9 @@ function filteredRows() {
     const searchable = [
       repo.name,
       repo.description,
+      repo.owner,
+      repo.category,
+      repo.categoryLabel,
       repo.language,
       repo.defaultBranch,
       localPaths.join(" "),
@@ -238,6 +297,7 @@ function filteredRows() {
       .toLowerCase();
     if (query && !searchable.includes(query)) return false;
 
+    if (state.filters.category !== "all" && repo.category !== state.filters.category) return false;
     if (state.filters.status === "local" && repo.localMatchCount === 0) return false;
     if (state.filters.status === "dirty" && !localMatches.some((match) => match.dirty)) return false;
     if (
@@ -268,10 +328,10 @@ function renderRepoTable() {
   const header = `
     <div class="table-header" role="row">
       <span>Repository</span>
-      <span>Visibility</span>
+      <span>Account</span>
+      <span>Category</span>
       <span>Status</span>
       <span>Language</span>
-      <span>Default</span>
       <span>Pushed</span>
     </div>
   `;
@@ -283,10 +343,10 @@ function renderRepoTable() {
             <span class="repo-name">${escapeHtml(repo.name)}</span>
             <span class="repo-description">${escapeHtml(repo.description || repo.url)}</span>
           </span>
-          <span>${visibilityBadge(repo)}</span>
+          <span class="mono">${escapeHtml(repo.owner || "current")}</span>
+          <span>${categoryBadge(repo)}</span>
           <span>${statusBadge(repo.localStatus)}</span>
           <span class="mono">${escapeHtml(repo.language || "none")}</span>
-          <span class="mono">${escapeHtml(repo.defaultBranch || "none")}</span>
           <span class="mono">${escapeHtml(formatDateShort(repo.pushedAt))}</span>
         </button>
       `,
@@ -334,7 +394,7 @@ function renderDetails() {
 
   elements.detailPanel.innerHTML = `
     <div class="detail-title">
-      <div>${visibilityBadge(repo)} ${repo.isFork ? '<span class="badge">Fork</span>' : '<span class="badge">Source</span>'} ${statusBadges}</div>
+      <div>${visibilityBadge(repo)} ${categoryBadge(repo)} ${repo.isFork ? '<span class="badge">Fork</span>' : '<span class="badge">Source</span>'} ${statusBadges}</div>
       <h3>${escapeHtml(repo.name)}</h3>
       <p class="detail-description">${escapeHtml(repo.description || "No description")}</p>
     </div>
@@ -355,6 +415,8 @@ function renderDetails() {
     </div>
 
     <div class="detail-grid">
+      <div class="detail-kv"><span>Account</span><strong>${escapeHtml(repo.owner || "current")}</strong></div>
+      <div class="detail-kv"><span>Category</span><strong>${escapeHtml(repo.categoryLabel || "Other")}</strong></div>
       <div class="detail-kv"><span>Language</span><strong>${escapeHtml(repo.language || "none")}</strong></div>
       <div class="detail-kv"><span>Default branch</span><strong>${escapeHtml(repo.defaultBranch || "none")}</strong></div>
       <div class="detail-kv"><span>Last pushed</span><strong>${escapeHtml(formatDate(repo.pushedAt) || "none")}</strong></div>
@@ -385,6 +447,7 @@ function renderLocalOnly() {
             <span class="repo-description">${escapeHtml(local.path)}</span>
             <span class="repo-description">${escapeHtml(remoteText || "no remote")}</span>
           </span>
+          <span>${categoryBadge(local)}</span>
           <span>${statusBadge(local.dirty ? "dirty" : local.status)}</span>
           <span class="mono">${escapeHtml(local.branch || "none")}</span>
           <button class="icon-button" type="button" data-open-path="${escapeHtml(local.path)}" title="Open local folder" aria-label="Open local folder">${icons.folder}</button>
@@ -428,6 +491,15 @@ function setActiveButton(container, attribute, value) {
   });
 }
 
+function applyTheme(theme) {
+  const safeTheme = ["atlas", "midnight", "paper", "aurora"].includes(theme) ? theme : "atlas";
+  document.documentElement.dataset.theme = safeTheme;
+  window.localStorage.setItem("repo-atlas-theme", safeTheme);
+  setActiveButton(elements.themeButtons, "theme", safeTheme);
+}
+
+applyTheme(window.localStorage.getItem("repo-atlas-theme") || "atlas");
+
 elements.searchInput.addEventListener("input", (event) => {
   state.filters.search = event.target.value;
   renderRepoTable();
@@ -438,6 +510,14 @@ elements.statusFilters.addEventListener("click", (event) => {
   if (!button) return;
   state.filters.status = button.dataset.status;
   setActiveButton(elements.statusFilters, "status", state.filters.status);
+  renderRepoTable();
+});
+
+elements.categoryFilters.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-category]");
+  if (!button) return;
+  state.filters.category = button.dataset.category;
+  setActiveButton(elements.categoryFilters, "category", state.filters.category);
   renderRepoTable();
 });
 
@@ -462,6 +542,12 @@ elements.sortSelect.addEventListener("change", (event) => {
   renderRepoTable();
 });
 
+elements.themeButtons.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-theme]");
+  if (!button) return;
+  applyTheme(button.dataset.theme);
+});
+
 elements.refreshButton.addEventListener("click", async () => {
   const previousTitle = elements.refreshButton.title;
   const roots = parseScanRoots();
@@ -470,9 +556,9 @@ elements.refreshButton.addEventListener("click", async () => {
     fetch: elements.fetchToggle.checked,
     maxDepth: Number.isFinite(maxDepth) ? maxDepth : 10,
   };
-  const account = elements.accountInput.value.trim();
-  if (account) {
-    payload.account = account;
+  const accounts = parseAccounts();
+  if (accounts.length) {
+    payload.accounts = accounts;
   }
   if (roots.length) {
     payload.scanRoots = roots;

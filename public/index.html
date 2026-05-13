@@ -4,20 +4,16 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>RepoAtlas</title>
+    <link rel="icon" href="/logo.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
     <div class="app-shell">
       <aside class="side-rail" aria-label="Repository filters and scan controls">
         <div class="brand-block">
-          <div class="brand-mark" aria-hidden="true">
-            <span></span>
-            <span></span>
-            <span></span>
-            <span></span>
-          </div>
+          <img class="brand-logo" src="/logo.svg" alt="" aria-hidden="true" />
           <div>
-            <p class="eyebrow">Desktop inventory</p>
+            <p class="eyebrow">Context map</p>
             <h1>RepoAtlas</h1>
           </div>
         </div>
@@ -28,8 +24,8 @@
         </label>
 
         <label class="account-box">
-          <span>GitHub account</span>
-          <input id="accountInput" type="text" placeholder="current gh login" autocomplete="off" />
+          <span>GitHub accounts</span>
+          <textarea id="accountsInput" rows="3" spellcheck="false" placeholder="current gh login&#10;Harzva&#10;saihao"></textarea>
         </label>
 
         <section class="control-group" aria-label="Status filter">
@@ -41,6 +37,23 @@
             <button type="button" data-status="behind">Behind</button>
             <button type="button" data-status="dirty">Dirty</button>
             <button type="button" data-status="no-local-copy">Missing</button>
+          </div>
+        </section>
+
+        <section class="control-group" aria-label="Category filter">
+          <p class="control-title">Category</p>
+          <div id="categoryFilters" class="segmented category-grid">
+            <button class="active" type="button" data-category="all">All</button>
+            <button type="button" data-category="skills">Skills</button>
+            <button type="button" data-category="mcp">MCP</button>
+            <button type="button" data-category="memory">Memory</button>
+            <button type="button" data-category="software">Software</button>
+            <button type="button" data-category="docs">Docs</button>
+            <button type="button" data-category="infra">Infra</button>
+            <button type="button" data-category="research">Research</button>
+            <button type="button" data-category="data">Data</button>
+            <button type="button" data-category="games">Games</button>
+            <button type="button" data-category="other">Other</button>
           </div>
         </section>
 
@@ -59,6 +72,16 @@
             <button class="active" type="button" data-fork="all">All</button>
             <button type="button" data-fork="source">Source</button>
             <button type="button" data-fork="fork">Fork</button>
+          </div>
+        </section>
+
+        <section class="control-group" aria-label="Theme">
+          <p class="control-title">Theme</p>
+          <div id="themeButtons" class="theme-palette">
+            <button class="active" type="button" data-theme="atlas" title="Atlas theme"><span style="--swatch: #0b7f77"></span>Atlas</button>
+            <button type="button" data-theme="midnight" title="Midnight theme"><span style="--swatch: #d7ff6b"></span>Midnight</button>
+            <button type="button" data-theme="paper" title="Paper theme"><span style="--swatch: #c24b32"></span>Paper</button>
+            <button type="button" data-theme="aurora" title="Aurora theme"><span style="--swatch: #7a5cff"></span>Aurora</button>
           </div>
         </section>
 
@@ -99,17 +122,19 @@
 
       <main class="workspace">
         <header class="top-bar">
-          <div>
+          <div class="title-stack">
             <p id="generatedAt" class="eyebrow">Inventory</p>
-            <h2>RepoAtlas</h2>
+            <h2>Repository Context Atlas</h2>
+            <div id="accountChips" class="account-chips" aria-label="Scanned accounts"></div>
           </div>
           <div class="top-actions">
-            <button id="refreshButton" class="icon-button" type="button" title="Refresh inventory" aria-label="Refresh inventory">
+            <button id="refreshButton" class="refresh-button" type="button" title="Refresh inventory">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path
                   d="M20 6v5h-5l1.9-1.9A6.5 6.5 0 0 0 5.8 12H3.7A8.5 8.5 0 0 1 18.3 7.7L20 6Zm-1.8 6A6.5 6.5 0 0 1 7.1 16.9L5.2 18.8H10v2H2v-8h2v4.6l1.7-1.7A8.5 8.5 0 0 0 20.3 12h-2.1Z"
                 />
               </svg>
+              <span>Refresh</span>
             </button>
           </div>
         </header>

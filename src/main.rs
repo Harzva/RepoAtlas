@@ -18,7 +18,7 @@ use tao::{
     dpi::LogicalSize,
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
-    window::WindowBuilder,
+    window::{Icon, WindowBuilder},
 };
 use walkdir::{DirEntry, WalkDir};
 use wry::WebViewBuilder;
@@ -58,6 +58,7 @@ fn main() -> wry::Result<()> {
         .with_title(APP_NAME)
         .with_inner_size(LogicalSize::new(1440.0, 960.0))
         .with_min_inner_size(LogicalSize::new(1100.0, 720.0))
+        .with_window_icon(window_icon())
         .build(&event_loop)
         .expect("create window");
 
@@ -80,6 +81,10 @@ fn main() -> wry::Result<()> {
             *control_flow = ControlFlow::Exit;
         }
     });
+}
+
+fn window_icon() -> Option<Icon> {
+    Icon::from_rgba(include_bytes!("repoatlas_icon_rgba.bin").to_vec(), 64, 64).ok()
 }
 
 fn inventory_path() -> PathBuf {
@@ -224,7 +229,7 @@ fn flatten_inventory_result(path: &Path) -> Value {
 
 fn refresh_response(body: &[u8], state: &AppState) -> HttpResponse {
     let payload: Value = serde_json::from_slice(body).unwrap_or_else(|_| json!({}));
-    let account = request_account(&payload);
+    let accounts = request_accounts(&payload);
     let fetch = payload
         .get("fetch")
         .and_then(Value::as_bool)
@@ -246,7 +251,7 @@ fn refresh_response(body: &[u8], state: &AppState) -> HttpResponse {
         })
         .unwrap_or_else(default_scan_roots);
 
-    match scan_inventory(&account, &scan_roots, max_depth, fetch).and_then(|inventory| {
+    match scan_inventory(&accounts, &scan_roots, max_depth, fetch).and_then(|inventory| {
         write_inventory(&state.inventory_path, &inventory)?;
         Ok(inventory)
     }) {
@@ -262,17 +267,56 @@ fn refresh_response(body: &[u8], state: &AppState) -> HttpResponse {
     }
 }
 
-fn request_account(payload: &Value) -> String {
-    if let Some(account) = payload
-        .get("account")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-    {
-        return account.to_string();
+fn request_accounts(payload: &Value) -> Vec<String> {
+    if let Some(accounts) = payload.get("accounts").and_then(Value::as_array) {
+        let values = accounts
+            .iter()
+            .filter_map(Value::as_str)
+            .flat_map(split_accounts)
+            .collect::<Vec<_>>();
+        if !values.is_empty() {
+            return unique_account_names(values);
+        }
     }
 
-    env::var("REPO_ATLAS_ACCOUNT").unwrap_or_default()
+    if let Some(account) = payload.get("account").and_then(Value::as_str) {
+        let values = split_accounts(account);
+        if !values.is_empty() {
+            return unique_account_names(values);
+        }
+    }
+
+    if let Ok(accounts) = env::var("REPO_ATLAS_ACCOUNTS") {
+        let values = split_accounts(&accounts);
+        if !values.is_empty() {
+            return unique_account_names(values);
+        }
+    }
+
+    if let Ok(account) = env::var("REPO_ATLAS_ACCOUNT") {
+        let values = split_accounts(&account);
+        if !values.is_empty() {
+            return unique_account_names(values);
+        }
+    }
+
+    vec![String::new()]
+}
+
+fn split_accounts(raw: &str) -> Vec<String> {
+    raw.split(|ch: char| matches!(ch, '\n' | '\r' | ';' | ','))
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+fn unique_account_names(values: Vec<String>) -> Vec<String> {
+    let mut seen = BTreeSet::new();
+    values
+        .into_iter()
+        .filter(|value| seen.insert(value.to_ascii_lowercase()))
+        .collect()
 }
 
 fn open_local_response(body: &[u8], state: &AppState) -> HttpResponse {
@@ -434,6 +478,7 @@ fn flatten_inventory(inventory: &Value) -> Value {
     let mut rows = Vec::new();
     let mut status_counts = BTreeMap::<String, u64>::new();
     let mut language_counts = BTreeMap::<String, u64>::new();
+    let mut category_counts = BTreeMap::<String, u64>::new();
     let mut public_count = 0_u64;
     let mut private_count = 0_u64;
     let mut fork_count = 0_u64;
@@ -447,9 +492,14 @@ fn flatten_inventory(inventory: &Value) -> Value {
             .and_then(Value::as_array)
             .cloned()
             .unwrap_or_default();
-        let local_paths = matches
+        let local_path_text = matches
             .iter()
             .filter_map(|match_item| match_item.get("path").and_then(Value::as_str))
+            .map(str::to_string)
+            .collect::<Vec<_>>();
+        let local_paths = local_path_text
+            .iter()
+            .cloned()
             .map(Value::from)
             .collect::<Vec<_>>();
         let local_status_list = if matches.is_empty() {
@@ -511,6 +561,13 @@ fn flatten_inventory(inventory: &Value) -> Value {
             .get("nameWithOwner")
             .and_then(Value::as_str)
             .unwrap_or("");
+        let description = remote
+            .get("description")
+            .and_then(Value::as_str)
+            .unwrap_or("");
+        let category = classify_repo(name, description, &local_path_text);
+        let category_label = category_label(&category);
+        *category_counts.entry(category.clone()).or_insert(0) += 1;
         let repo_key = remote.get("repoKey").and_then(Value::as_str).unwrap_or("");
         let id = if repo_key.is_empty() {
             format!("{name}{index}")
@@ -534,7 +591,9 @@ fn flatten_inventory(inventory: &Value) -> Value {
             "defaultBranch": row.get("defaultBranch").and_then(Value::as_str).unwrap_or(""),
             "pushedAt": remote.get("pushedAt").and_then(Value::as_str).unwrap_or(""),
             "updatedAt": remote.get("updatedAt").and_then(Value::as_str).unwrap_or(""),
-            "description": remote.get("description").and_then(Value::as_str).unwrap_or(""),
+            "description": description,
+            "category": category,
+            "categoryLabel": category_label,
             "localStatus": local_status,
             "localStatusList": local_status_list,
             "localMatchCount": matches.len(),
@@ -549,11 +608,33 @@ fn flatten_inventory(inventory: &Value) -> Value {
         .iter()
         .enumerate()
         .map(|(index, local)| {
+            let path = local.get("path").and_then(Value::as_str).unwrap_or("");
+            let local_context = vec![path.to_string()];
+            let remote_text = local
+                .get("remotes")
+                .and_then(Value::as_array)
+                .map(|remotes| {
+                    remotes
+                        .iter()
+                        .filter_map(|remote| {
+                            remote
+                                .get("repoKey")
+                                .or_else(|| remote.get("url"))
+                                .and_then(Value::as_str)
+                        })
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                })
+                .unwrap_or_default();
+            let category = classify_repo(&remote_text, path, &local_context);
+            let category_label = category_label(&category);
             json!({
                 "id": format!("local-only-{index}"),
-                "path": local.get("path").and_then(Value::as_str).unwrap_or(""),
+                "path": path,
                 "branch": local.get("branch").and_then(Value::as_str).unwrap_or(""),
                 "status": local.get("status").and_then(Value::as_str).unwrap_or("unknown"),
+                "category": category,
+                "categoryLabel": category_label,
                 "head": local.get("head").and_then(Value::as_str).unwrap_or(""),
                 "upstream": local.get("upstream").and_then(Value::as_str).unwrap_or(""),
                 "upstreamSha": local.get("upstreamSha").and_then(Value::as_str).unwrap_or(""),
@@ -581,7 +662,10 @@ fn flatten_inventory(inventory: &Value) -> Value {
             "archivedCount": archived_count,
             "statusCounts": status_counts,
             "languageCounts": language_counts,
+            "categoryCounts": category_counts,
             "scanRoots": inventory.get("scanRoots").cloned().unwrap_or_else(|| json!([])),
+            "accounts": inventory.get("accounts").cloned().unwrap_or_else(|| legacy_accounts(inventory)),
+            "accountErrors": inventory.get("accountErrors").cloned().unwrap_or_else(|| json!([])),
             "accountAlias": inventory.get("accountAlias").and_then(Value::as_str).unwrap_or(""),
             "accountLogin": inventory.get("accountLogin").and_then(Value::as_str).unwrap_or(""),
             "versionCheckUsedFetch": inventory.get("versionCheckUsedFetch").cloned().unwrap_or(Value::Null),
@@ -626,6 +710,149 @@ fn unique_strings(values: Vec<&str>) -> Vec<String> {
         .filter(|value| seen.insert((*value).to_string()))
         .map(str::to_string)
         .collect()
+}
+
+fn legacy_accounts(inventory: &Value) -> Value {
+    let alias = inventory
+        .get("accountAlias")
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    let login = inventory
+        .get("accountLogin")
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    if alias.is_empty() && login.is_empty() {
+        json!([])
+    } else {
+        json!([{ "alias": alias, "login": login, "repoCount": inventory.get("remoteCount").and_then(Value::as_u64).unwrap_or(0) }])
+    }
+}
+
+fn classify_repo(name: &str, description: &str, local_paths: &[String]) -> String {
+    let haystack =
+        format!("{} {} {}", name, description, local_paths.join(" ")).to_ascii_lowercase();
+
+    if contains_any(
+        &haystack,
+        &[
+            "model-context-protocol",
+            "mcp-",
+            "-mcp",
+            "/mcp",
+            " mcp",
+            "mcp server",
+            "connector",
+        ],
+    ) {
+        return "mcp".into();
+    }
+    if contains_any(
+        &haystack,
+        &[
+            "skill",
+            "skills",
+            "codex-skill",
+            "agents/skills",
+            ".codex/skills",
+        ],
+    ) {
+        return "skills".into();
+    }
+    if contains_any(
+        &haystack,
+        &[
+            "memory",
+            "memories",
+            "knowledge",
+            "rag",
+            "vector",
+            "obsidian",
+        ],
+    ) {
+        return "memory".into();
+    }
+    if contains_any(
+        &haystack,
+        &[
+            "desktop",
+            "app",
+            "software",
+            "cli",
+            "tool",
+            "extension",
+            "market",
+            "release",
+            "webview",
+        ],
+    ) {
+        return "software".into();
+    }
+    if contains_any(
+        &haystack,
+        &[
+            "docs",
+            "documentation",
+            "readme",
+            "website",
+            "blog",
+            "roadmap",
+            "course",
+        ],
+    ) {
+        return "docs".into();
+    }
+    if contains_any(
+        &haystack,
+        &[
+            "action", "workflow", "docker", "deploy", "pipeline", "ci", "router", "config",
+        ],
+    ) {
+        return "infra".into();
+    }
+    if contains_any(
+        &haystack,
+        &["dataset", "corpus", "benchmark", "data", "csv", "jsonl"],
+    ) {
+        return "data".into();
+    }
+    if contains_any(
+        &haystack,
+        &[
+            "paper",
+            "research",
+            "model",
+            "pytorch",
+            "tensorflow",
+            "llm",
+            "nlp",
+            "agent",
+        ],
+    ) {
+        return "research".into();
+    }
+    if contains_any(&haystack, &["game", "tic-tac-toe", "chess", "puzzle"]) {
+        return "games".into();
+    }
+    "other".into()
+}
+
+fn category_label(category: &str) -> &'static str {
+    match category {
+        "skills" => "Skills",
+        "mcp" => "MCP",
+        "memory" => "Memory",
+        "software" => "Software",
+        "docs" => "Docs",
+        "infra" => "Infra",
+        "data" => "Data",
+        "research" => "Research",
+        "games" => "Games",
+        _ => "Other",
+    }
+}
+
+fn contains_any(haystack: &str, needles: &[&str]) -> bool {
+    needles.iter().any(|needle| haystack.contains(needle))
 }
 
 fn allowed_local_paths(inventory: &Value) -> BTreeSet<String> {
@@ -696,37 +923,112 @@ fn default_fetch() -> bool {
 }
 
 fn scan_inventory(
-    account: &str,
+    accounts: &[String],
     scan_roots: &[PathBuf],
     max_depth: usize,
     fetch: bool,
 ) -> Result<Value> {
-    let remote_repos = list_remote_repos(account)?;
-    let account_login = remote_repos
-        .first()
-        .and_then(|repo| repo.get("accountLogin"))
-        .and_then(Value::as_str)
-        .unwrap_or("")
-        .to_string();
-    let account_alias = if account.trim().is_empty() {
-        account_login.clone()
+    let requested_accounts = if accounts.is_empty() {
+        vec![String::new()]
     } else {
-        account.trim().to_string()
+        accounts.to_vec()
     };
+    let mut remote_repos = Vec::new();
+    let mut account_summaries = Vec::new();
+    let mut account_errors = Vec::new();
+    let mut seen_repo_keys = BTreeSet::new();
+
+    for account in requested_accounts {
+        match list_remote_repos(&account) {
+            Ok(repos) => {
+                let account_login = repos
+                    .first()
+                    .and_then(|repo| repo.get("accountLogin"))
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string();
+                let account_alias = if account.trim().is_empty() {
+                    account_login.clone()
+                } else {
+                    account.trim().to_string()
+                };
+                let repo_count = repos.len();
+                account_summaries.push(json!({
+                    "alias": account_alias,
+                    "login": account_login,
+                    "repoCount": repo_count,
+                }));
+                for repo in repos {
+                    let key = repo
+                        .get("repoKey")
+                        .and_then(Value::as_str)
+                        .unwrap_or("")
+                        .to_string();
+                    if key.is_empty() || seen_repo_keys.insert(key) {
+                        remote_repos.push(repo);
+                    }
+                }
+            }
+            Err(error) => {
+                account_errors.push(json!({
+                    "alias": account.trim(),
+                    "error": error.to_string(),
+                }));
+            }
+        }
+    }
+
+    if remote_repos.is_empty() && !account_errors.is_empty() {
+        return Err(anyhow!(
+            "No GitHub repositories could be loaded. {}",
+            account_errors
+                .iter()
+                .filter_map(|item| item.get("error").and_then(Value::as_str))
+                .collect::<Vec<_>>()
+                .join("; ")
+        ));
+    }
+    remote_repos.sort_by(|a, b| {
+        a.get("nameWithOwner")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .cmp(b.get("nameWithOwner").and_then(Value::as_str).unwrap_or(""))
+    });
+
     let git_roots = find_git_roots(scan_roots, max_depth);
     let local_repos = git_roots
         .iter()
         .map(|path| inspect_local_repo(path, fetch))
         .collect::<Vec<_>>();
     let mut inventory = merge_inventory(remote_repos, local_repos);
+    let account_aliases = account_summaries
+        .iter()
+        .filter_map(|item| item.get("alias").and_then(Value::as_str))
+        .filter(|value| !value.is_empty())
+        .collect::<Vec<_>>()
+        .join(", ");
+    let account_logins = account_summaries
+        .iter()
+        .filter_map(|item| item.get("login").and_then(Value::as_str))
+        .filter(|value| !value.is_empty())
+        .collect::<Vec<_>>()
+        .join(", ");
     inventory
         .as_object_mut()
         .unwrap()
-        .insert("accountAlias".into(), Value::from(account_alias));
+        .insert("accounts".into(), Value::Array(account_summaries));
     inventory
         .as_object_mut()
         .unwrap()
-        .insert("accountLogin".into(), Value::from(account_login));
+        .insert("accountErrors".into(), Value::Array(account_errors));
+    inventory
+        .as_object_mut()
+        .unwrap()
+        .insert("accountAlias".into(), Value::from(account_aliases));
+    inventory
+        .as_object_mut()
+        .unwrap()
+        .insert("accountLogin".into(), Value::from(account_logins));
     inventory.as_object_mut().unwrap().insert(
         "scanRoots".into(),
         Value::Array(
@@ -744,18 +1046,24 @@ fn scan_inventory(
 }
 
 fn list_remote_repos(account: &str) -> Result<Vec<Value>> {
-    let user = gh(account, &["api", "user", "--jq", ".login"])?;
-    let login_text = String::from_utf8_lossy(&user.stdout).trim().to_string();
+    let account = account.trim();
+    let routed = router_path().exists() && !account.is_empty();
+    let login_text = if account.is_empty() || routed {
+        let user = gh(account, &["api", "user", "--jq", ".login"])?;
+        String::from_utf8_lossy(&user.stdout).trim().to_string()
+    } else {
+        account.to_string()
+    };
     let login = login_text.as_str();
     let fields = "nameWithOwner,url,description,isPrivate,isArchived,isFork,primaryLanguage,pushedAt,updatedAt,defaultBranchRef";
     let repo_proc = gh_raw(
-        account,
+        if routed { account } else { "" },
         &["repo", "list", login, "--limit", "1000", "--json", fields],
     );
     let repo_items = if repo_proc.status.success() {
         serde_json::from_slice::<Vec<Value>>(&repo_proc.stdout)?
     } else {
-        list_remote_repos_rest(account)?
+        list_remote_repos_rest(account, login, routed)?
     };
 
     let mut seen = BTreeSet::new();
@@ -795,17 +1103,21 @@ fn list_remote_repos(account: &str) -> Result<Vec<Value>> {
     Ok(remotes)
 }
 
-fn list_remote_repos_rest(account: &str) -> Result<Vec<Value>> {
+fn list_remote_repos_rest(account: &str, login: &str, routed: bool) -> Result<Vec<Value>> {
     let jq = ".[] | {nameWithOwner:.full_name,url:.html_url,description:.description,isPrivate:.private,isArchived:.archived,isFork:.fork,primaryLanguage:(if .language == null then null else {name:.language} end),pushedAt:.pushed_at,updatedAt:.updated_at,defaultBranchRef:{name:.default_branch}}";
+    let route_account = if routed || account.trim().is_empty() {
+        account
+    } else {
+        ""
+    };
+    let endpoint = if routed || account.trim().is_empty() {
+        "/user/repos?affiliation=owner&per_page=100".to_string()
+    } else {
+        format!("/users/{login}/repos?per_page=100")
+    };
     let proc = gh(
-        account,
-        &[
-            "api",
-            "--paginate",
-            "/user/repos?affiliation=owner&per_page=100",
-            "--jq",
-            jq,
-        ],
+        route_account,
+        &["api", "--paginate", endpoint.as_str(), "--jq", jq],
     )?;
     let mut repos = Vec::new();
     for line in String::from_utf8_lossy(&proc.stdout)
@@ -1197,6 +1509,8 @@ fn render_csv(inventory: &Value) -> String {
         .unwrap_or_default();
     let headers = [
         "Repository",
+        "Account",
+        "Category",
         "URL",
         "Visibility",
         "Fork",
@@ -1235,6 +1549,14 @@ fn render_csv(inventory: &Value) -> String {
             .unwrap_or_default();
         let record = [
             repo.get("name")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string(),
+            repo.get("owner")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string(),
+            repo.get("categoryLabel")
                 .and_then(Value::as_str)
                 .unwrap_or("")
                 .to_string(),
@@ -1308,8 +1630,8 @@ fn render_markdown(inventory: &Value) -> String {
             summary.get("remoteCount").and_then(Value::as_u64).unwrap_or(0)
         ),
         "".into(),
-        "| Repository | Visibility | Fork | Language | Default branch | Local status | Last pushed | Description |".into(),
-        "|---|---|---:|---|---|---|---|---|".into(),
+        "| Repository | Account | Category | Visibility | Fork | Language | Default branch | Local status | Last pushed | Description |".into(),
+        "|---|---|---|---|---:|---|---|---|---|---|".into(),
     ];
     for repo in rows {
         let name = repo.get("name").and_then(Value::as_str).unwrap_or("");
@@ -1331,8 +1653,14 @@ fn render_markdown(inventory: &Value) -> String {
             })
             .unwrap_or_default();
         lines.push(format!(
-            "| {} | {} | {} | {} | {} | {} | {} | {} |",
+            "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |",
             link,
+            md_cell(repo.get("owner").and_then(Value::as_str).unwrap_or("")),
+            md_cell(
+                repo.get("categoryLabel")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+            ),
             md_cell(repo.get("visibility").and_then(Value::as_str).unwrap_or("")),
             yes_no(repo.get("isFork").and_then(Value::as_bool).unwrap_or(false)),
             md_cell(

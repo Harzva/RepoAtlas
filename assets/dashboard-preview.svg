@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" role="img" aria-label="RepoAtlas dashboard preview">
+  <defs>
+    <linearGradient id="page" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f8f7ef"/>
+      <stop offset="1" stop-color="#e8f3f1"/>
+    </linearGradient>
+    <linearGradient id="side" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1d2b28"/>
+      <stop offset="1" stop-color="#121b19"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#14201d" flood-opacity=".16"/>
+    </filter>
+  </defs>
+  <rect width="1200" height="720" fill="url(#page)"/>
+  <path d="M250 0h1v720h-1z" fill="#d7ded7"/>
+  <path d="M0 0h250v720H0z" fill="url(#side)"/>
+  <g transform="translate(28 28)">
+    <circle cx="28" cy="28" r="28" fill="#0f4f55"/>
+    <circle cx="28" cy="28" r="25" fill="none" stroke="#f8fbf3" stroke-width="3"/>
+    <path d="M15 25h26M20 15v30M36 15v30M15 39h26" stroke="#f8fbf3" stroke-opacity=".28" stroke-width="2"/>
+    <path d="M18 22h14v14H18zM34 14h14v14H34zM34 34h14v14H34z" fill="#bdf1e8" stroke="#f8fbf3" stroke-width="2"/>
+    <circle cx="25" cy="29" r="4" fill="#f2c04e"/>
+    <circle cx="39" cy="24" r="4" fill="#e65a45"/>
+    <circle cx="38" cy="43" r="4" fill="#42c3b5"/>
+    <text x="72" y="24" fill="#b8c7c0" font-family="Consolas, monospace" font-size="12" font-weight="700">CONTEXT MAP</text>
+    <text x="72" y="48" fill="#ffffff" font-family="Bahnschrift, Segoe UI, sans-serif" font-size="26" font-weight="800">RepoAtlas</text>
+  </g>
+  <g transform="translate(24 118)" fill="none" stroke="#51605b">
+    <rect width="202" height="42" rx="7"/>
+    <rect y="78" width="94" height="38" rx="7" fill="#f2c04e" stroke="#f2c04e"/>
+    <rect x="104" y="78" width="98" height="38" rx="7"/>
+    <rect y="126" width="94" height="38" rx="7"/>
+    <rect x="104" y="126" width="98" height="38" rx="7"/>
+  </g>
+  <g transform="translate(24 222)">
+    <text fill="#b8c7c0" font-family="Segoe UI, sans-serif" font-size="13" font-weight="800">Accounts</text>
+    <rect y="18" width="202" height="86" rx="7" fill="#0e1413" stroke="#51605b"/>
+    <text x="14" y="48" fill="#f8fbf3" font-family="Consolas, monospace" font-size="15">Harzva</text>
+    <text x="14" y="76" fill="#f8fbf3" font-family="Consolas, monospace" font-size="15">saihao</text>
+  </g>
+  <g transform="translate(284 28)">
+    <rect width="870" height="82" rx="8" fill="#fff8df" stroke="#d7ded7"/>
+    <text x="22" y="30" fill="#63706b" font-family="Consolas, monospace" font-size="12" font-weight="700">GENERATED 2026/05/13</text>
+    <text x="22" y="62" fill="#101716" font-family="Bahnschrift, Segoe UI, sans-serif" font-size="32" font-weight="800">Repository Context Atlas</text>
+    <rect x="608" y="28" width="88" height="28" rx="14" fill="#d7eeea" stroke="#9fcfc8"/>
+    <text x="626" y="47" fill="#0b7f77" font-family="Consolas, monospace" font-size="12" font-weight="800">Harzva</text>
+    <rect x="706" y="28" width="82" height="28" rx="14" fill="#d7eeea" stroke="#9fcfc8"/>
+    <text x="724" y="47" fill="#0b7f77" font-family="Consolas, monospace" font-size="12" font-weight="800">saihao</text>
+    <rect x="804" y="20" width="46" height="42" rx="8" fill="#f2c04e" stroke="#b78921"/>
+  </g>
+  <g transform="translate(284 132)" filter="url(#shadow)">
+    <g fill="#ffffff" stroke="#d9ded7">
+      <rect width="136" height="82" rx="7"/>
+      <rect x="150" width="136" height="82" rx="7"/>
+      <rect x="300" width="136" height="82" rx="7"/>
+      <rect x="450" width="136" height="82" rx="7"/>
+      <rect x="600" width="136" height="82" rx="7"/>
+      <rect x="750" width="136" height="82" rx="7"/>
+    </g>
+    <g font-family="Consolas, monospace" font-size="12" fill="#63706b" font-weight="700">
+      <text x="18" y="28">Remote</text><text x="168" y="28">Accounts</text><text x="318" y="28">Categories</text><text x="468" y="28">Local Git</text><text x="618" y="28">Matched</text><text x="768" y="28">Missing</text>
+    </g>
+    <g font-family="Bahnschrift, Segoe UI, sans-serif" font-size="34" fill="#101716" font-weight="800">
+      <text x="18" y="62">128</text><text x="168" y="62">2</text><text x="318" y="62">9</text><text x="468" y="62">42</text><text x="618" y="62">31</text><text x="768" y="62">97</text>
+    </g>
+  </g>
+  <g transform="translate(284 246)" filter="url(#shadow)">
+    <rect width="872" height="166" rx="8" fill="#ffffff" stroke="#d9ded7"/>
+    <text x="22" y="32" fill="#63706b" font-family="Consolas, monospace" font-size="12" font-weight="800">LOCAL MATCHES</text>
+    <text x="22" y="58" fill="#101716" font-family="Bahnschrift, Segoe UI, sans-serif" font-size="23" font-weight="800">Context-linked repositories</text>
+    <g transform="translate(20 76)">
+      <rect width="260" height="62" rx="7" fill="#fbfcf8" stroke="#d9ded7"/>
+      <rect x="292" width="260" height="62" rx="7" fill="#fbfcf8" stroke="#d9ded7"/>
+      <rect x="584" width="248" height="62" rx="7" fill="#fbfcf8" stroke="#d9ded7"/>
+      <text x="14" y="24" fill="#101716" font-family="Bahnschrift, Segoe UI, sans-serif" font-size="18" font-weight="800">Harzva/RepoAtlas</text>
+      <text x="306" y="24" fill="#101716" font-family="Bahnschrift, Segoe UI, sans-serif" font-size="18" font-weight="800">saihao/mcp-lab</text>
+      <text x="598" y="24" fill="#101716" font-family="Bahnschrift, Segoe UI, sans-serif" font-size="18" font-weight="800">team/agent-skills</text>
+      <text x="14" y="48" fill="#63706b" font-family="Consolas, monospace" font-size="13">Software - synced - 1 path</text>
+      <text x="306" y="48" fill="#63706b" font-family="Consolas, monospace" font-size="13">MCP - behind - 2 paths</text>
+      <text x="598" y="48" fill="#63706b" font-family="Consolas, monospace" font-size="13">Skills - dirty - 1 path</text>
+    </g>
+  </g>
+  <g transform="translate(284 438)" filter="url(#shadow)">
+    <rect width="574" height="238" rx="8" fill="#ffffff" stroke="#d9ded7"/>
+    <text x="22" y="34" fill="#63706b" font-family="Consolas, monospace" font-size="12" font-weight="800">REMOTE MAP</text>
+    <text x="22" y="62" fill="#101716" font-family="Bahnschrift, Segoe UI, sans-serif" font-size="24" font-weight="800">Remote repositories</text>
+    <g font-family="Consolas, monospace" font-size="12" fill="#63706b" font-weight="800">
+      <text x="22" y="96">Repository</text><text x="286" y="96">Account</text><text x="384" y="96">Category</text><text x="486" y="96">Status</text>
+    </g>
+    <g font-family="Segoe UI, sans-serif" font-size="15">
+      <path d="M20 112h534M20 156h534M20 200h534" stroke="#d9ded7"/>
+      <text x="22" y="140" fill="#101716" font-weight="800">Harzva/RepoAtlas</text><text x="286" y="140" fill="#63706b">Harzva</text><text x="384" y="140" fill="#0b7f77" font-weight="800">Software</text><text x="486" y="140" fill="#236b3f" font-weight="800">synced</text>
+      <text x="22" y="184" fill="#101716" font-weight="800">saihao/mcp-lab</text><text x="286" y="184" fill="#63706b">saihao</text><text x="384" y="184" fill="#0b7f77" font-weight="800">MCP</text><text x="486" y="184" fill="#a46100" font-weight="800">behind</text>
+      <text x="22" y="228" fill="#101716" font-weight="800">team/memory-bank</text><text x="286" y="228" fill="#63706b">team</text><text x="384" y="228" fill="#245b9f" font-weight="800">Memory</text><text x="486" y="228" fill="#5f6662" font-weight="800">missing</text>
+    </g>
+  </g>
+  <g transform="translate(884 438)" filter="url(#shadow)">
+    <rect width="272" height="238" rx="8" fill="#ffffff" stroke="#d9ded7"/>
+    <rect x="22" y="22" width="70" height="28" rx="14" fill="#d7eeea" stroke="#9fcfc8"/>
+    <text x="39" y="41" fill="#0b7f77" font-family="Consolas, monospace" font-size="12" font-weight="800">MCP</text>
+    <text x="22" y="82" fill="#101716" font-family="Bahnschrift, Segoe UI, sans-serif" font-size="24" font-weight="800">saihao/mcp-lab</text>
+    <text x="22" y="112" fill="#63706b" font-family="Segoe UI, sans-serif" font-size="15">Local and GitHub context are linked.</text>
+    <rect x="22" y="140" width="86" height="36" rx="7" fill="#ffffff" stroke="#d9ded7"/>
+    <rect x="118" y="140" width="86" height="36" rx="7" fill="#ffffff" stroke="#d9ded7"/>
+    <text x="44" y="163" fill="#101716" font-family="Segoe UI, sans-serif" font-size="14" font-weight="700">GitHub</text>
+    <text x="145" y="163" fill="#101716" font-family="Segoe UI, sans-serif" font-size="14" font-weight="700">Folder</text>
+  </g>
+</svg>

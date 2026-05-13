@@ -3,6 +3,8 @@
   "remoteCount": 0,
   "localRepoCount": 0,
   "matchedRemoteCount": 0,
+  "accounts": [],
+  "accountErrors": [],
   "accountAlias": "",
   "accountLogin": "",
   "scanRoots": [],

@@ -1,59 +1,62 @@
 <div align="center">
 
+<img src="public/logo.svg" alt="RepoAtlas logo" width="92" />
+
 # RepoAtlas
 
-**A Rust desktop app that maps GitHub repositories to local Git checkouts, highlights drift, and opens the right folder fast.**
+**A Rust desktop atlas for managing multiple GitHub accounts, local Git checkouts, sync drift, and repository context categories.**
 
 [![Release](https://img.shields.io/github/v/release/Harzva/RepoAtlas?label=release)](https://github.com/Harzva/RepoAtlas/releases/latest)
 [![CI](https://github.com/Harzva/RepoAtlas/actions/workflows/ci.yml/badge.svg)](https://github.com/Harzva/RepoAtlas/actions/workflows/ci.yml)
 [![Windows](https://img.shields.io/badge/platform-Windows-245b9f)](https://github.com/Harzva/RepoAtlas/releases/latest)
+[![macOS](https://img.shields.io/badge/platform-macOS-111716)](https://github.com/Harzva/RepoAtlas/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-236b3f.svg)](LICENSE)
 [![GitHub Pages](https://img.shields.io/badge/site-GitHub%20Pages-0b7f77)](https://harzva.github.io/RepoAtlas/)
 
-[Download Windows exe](https://github.com/Harzva/RepoAtlas/releases/latest) ·
-[Website](https://harzva.github.io/RepoAtlas/) ·
-[Quick Start](#quick-start) ·
+[Download](https://github.com/Harzva/RepoAtlas/releases/latest) |
+[Website](https://harzva.github.io/RepoAtlas/) |
+[Quick Start](#quick-start) |
 [Workflow](#workflow)
 
-<img src="assets/dashboard-screenshot.png" alt="RepoAtlas dashboard screenshot" width="920" />
+<img src="assets/dashboard-preview.svg" alt="RepoAtlas dashboard preview" width="920" />
 
 </div>
 
-## Why
+## Why RepoAtlas
 
-GitHub accounts and organizations grow messy over time: old forks, private prototypes, local experiments, duplicated clones, and branches that quietly drift from upstream. RepoAtlas gives you one operational view of that reality.
+GitHub becomes a real context layer only when remote repositories, local folders, account boundaries, and project categories are visible in one place. RepoAtlas connects those layers so you can see what exists online, what is cloned locally, what has drifted, and which repositories belong to categories such as Skills, MCP, Memory, Software, Docs, Infra, and Research.
 
-| Question | RepoAtlas answers with |
+## Highlights
+
+| Capability | What it gives you |
 |---|---|
-| Which GitHub repos have local checkouts? | Matched local path counts and folder actions |
-| Which local repos are out of sync? | `synced`, `behind`, `ahead`, `diverged`, `dirty`, `no-upstream` |
-| Which remotes are not cloned locally? | `no-local-copy` filtering |
-| Where is the project folder? | One-click local folder opening |
-| How do I export the inventory? | JSON, CSV, and Markdown reports |
-
-## Features
-
-- **Account-neutral GitHub inventory**: uses GitHub CLI to list repositories owned by the active user, or by an optional account/router alias.
-- **Local Git mapping**: scans configured folders and matches local remotes by normalized `github.com/owner/repo` keys.
-- **Drift detection**: compares local HEAD against upstream and marks dirty worktrees.
-- **Desktop actions**: open local folders, copy clone URLs, copy paths, and jump to GitHub.
-- **Configurable scans**: set account, scan roots, max depth, and fetch behavior from the UI.
-- **Portable reports**: export live JSON, CSV, and Markdown from the local app.
+| Multi-account inventory | Scan one or many GitHub accounts or account-router aliases in the same atlas. |
+| Local bridge | Match `github.com/owner/repo` remotes to local Git folders and open them from the app. |
+| Context categories | Automatically classify repositories into Skills, MCP, Memory, Software, Docs, Infra, Data, Research, Games, or Other. |
+| Drift signals | Show `synced`, `behind`, `ahead`, `diverged`, `dirty`, `no-upstream`, and `no-local-copy`. |
+| Themeable dashboard | Switch between Atlas, Midnight, Paper, and Aurora themes. |
+| Portable reports | Export live JSON, CSV, and Markdown reports from the local app. |
+| Cross-platform releases | GitHub Actions builds Windows exe and macOS tar.gz assets. |
 
 ## Quick Start
 
 ### Download
 
 1. Open [Latest Release](https://github.com/Harzva/RepoAtlas/releases/latest).
-2. Download `RepoAtlas-v0.2.0-x64.exe`.
-3. Run the exe.
+2. Windows: download `RepoAtlas-vX.Y.Z-windows-x64.exe`.
+3. macOS: download `RepoAtlas-vX.Y.Z-macos-ARM64.tar.gz`, extract it, and run `./RepoAtlas` from Terminal.
 4. Sign in with GitHub CLI when you want live rescans:
 
 ```powershell
 gh auth login
 ```
 
-If the account field is empty, RepoAtlas uses the current `gh` login. If you use a local account-routing helper, enter that alias in the account field.
+Leave the account field empty to scan the current `gh` login. Enter multiple accounts or local router aliases on separate lines to merge them into one atlas:
+
+```text
+Harzva
+saihao
+```
 
 ### Local Development
 
@@ -63,7 +66,7 @@ cd RepoAtlas
 cargo run
 ```
 
-Build a release exe:
+Build a release binary:
 
 ```powershell
 cargo build --release
@@ -73,20 +76,37 @@ cargo build --release
 
 ```mermaid
 flowchart LR
-  A["GitHub CLI"] --> B["Owned repositories"]
+  A["GitHub CLI accounts"] --> B["Remote repositories"]
   C["Scan roots"] --> D["Local Git repositories"]
   D --> E["Remote URL normalization"]
   B --> F["Repository key map"]
   E --> F
   F --> G["Sync status + local paths"]
-  G --> H["RepoAtlas dashboard + reports"]
+  G --> H["Category inference"]
+  H --> I["RepoAtlas dashboard + reports"]
 ```
+
+## Categories
+
+RepoAtlas ships with automatic category inference so a repository collection can become a usable context map.
+
+| Category | Typical signals |
+|---|---|
+| Skills | Codex skills, agent skills, local `.codex/skills` style projects. |
+| MCP | MCP servers, connectors, model-context-protocol tooling. |
+| Memory | Memory banks, knowledge systems, RAG, vector stores, notes. |
+| Software | Desktop apps, CLIs, tools, extensions, release utilities. |
+| Docs | Documentation, websites, roadmaps, course material. |
+| Infra | Workflows, CI, deployment, Docker, routers, config. |
+| Data | Datasets, corpora, benchmarks, CSV/JSONL collections. |
+| Research | Papers, models, LLM/NLP/agent experiments. |
 
 ## Configuration
 
 | Variable | Purpose |
 |---|---|
-| `REPO_ATLAS_ACCOUNT` | Optional GitHub account/router alias. Empty means current `gh` login. |
+| `REPO_ATLAS_ACCOUNTS` | Optional comma/semicolon/newline separated account or router aliases. |
+| `REPO_ATLAS_ACCOUNT` | Backward-compatible single account alias. |
 | `REPO_ATLAS_SCAN_ROOTS` | Scan roots separated by the OS path delimiter. |
 | `REPO_ATLAS_MAX_DEPTH` | Directory depth for local Git discovery. Default: `10`. |
 | `REPO_ATLAS_DATA` | Writable inventory JSON path. |
@@ -96,19 +116,19 @@ flowchart LR
 
 ```text
 .
-├── Cargo.toml                 # Rust application manifest
-├── src/main.rs                # WebView shell, local API, scanner
-├── public/                    # Embedded dashboard UI
-├── data/seed-inventory.json   # Empty seed inventory for first launch
-├── docs/                      # GitHub Pages site
-├── assets/                    # README screenshots
-└── .github/workflows/         # CI, Release, and Pages automation
+|-- Cargo.toml                 # Rust application manifest
+|-- src/main.rs                # WebView shell, local API, scanner
+|-- public/                    # Embedded dashboard UI
+|-- data/seed-inventory.json   # Empty seed inventory for first launch
+|-- docs/                      # GitHub Pages site
+|-- assets/                    # README visuals
+`-- .github/workflows/         # CI, Release, and Pages automation
 ```
 
 ## Release Checklist
 
 - CI: `cargo fmt --all -- --check`, `cargo check --locked`, `node --check public/app.js`
-- Release: push a `v*` tag to build and upload the Windows exe
+- Release: push a `v*` tag to build Windows and macOS assets
 - Pages: deploys from `/docs`
 - Keep generated inventories free of credentials and private local paths before committing
 

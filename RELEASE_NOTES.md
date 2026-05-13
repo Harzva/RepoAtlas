@@ -1,18 +1,19 @@
-# RepoAtlas v0.2.0
+# RepoAtlas v0.3.0
 
-General-purpose rename and privacy cleanup release.
+Multi-account context release.
 
 ## Highlights
 
-- Renamed the product and release assets to RepoAtlas.
-- Removed the Harzva-specific seed inventory from the public app bundle.
-- Switched the default inventory to an empty, account-neutral seed file.
-- Added an account field so users can scan the current `gh` login or an optional local account-router alias.
-- Replaced public screenshots and docs with generic example repositories.
-- Updated report routes to generic `repo-atlas.*` exports.
+- Added multi-account scanning with `accounts[]`, `REPO_ATLAS_ACCOUNTS`, and newline/comma/semicolon parsing in the UI.
+- Added automatic repository categories: Skills, MCP, Memory, Software, Docs, Infra, Data, Research, Games, and Other.
+- Redesigned the dashboard with a custom RepoAtlas logo, account chips, category filters, and four themes: Atlas, Midnight, Paper, and Aurora.
+- Added a custom window icon so the desktop app no longer uses the default titlebar mark.
+- Added macOS release packaging in GitHub Actions alongside the Windows portable exe.
+- Updated CSV and Markdown exports with account and category columns.
+- Refreshed README and GitHub Pages positioning for a generic, reusable RepoAtlas project.
 
 ## Requirements for live rescans
 
 - Git
 - GitHub CLI `gh`
-- `gh auth login` completed for the GitHub account you want to inventory
+- `gh auth login` completed for each account you want to scan, or a local account-router alias configured for that environment

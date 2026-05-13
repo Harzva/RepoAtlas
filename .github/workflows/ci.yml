@@ -14,9 +14,15 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  windows:
-    name: Windows check
-    runs-on: windows-latest
+  check:
+    name: ${{ matrix.os }} check
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - windows-latest
+          - macos-latest
 
     steps:
       - name: Checkout
@@ -34,8 +40,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-ci-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-ci-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-cargo-ci-
             ${{ runner.os }}-cargo-ci-
             ${{ runner.os }}-cargo-
 

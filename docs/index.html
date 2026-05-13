@@ -6,7 +6,7 @@
     <title>RepoAtlas</title>
     <meta
       name="description"
-      content="RepoAtlas is a Windows desktop app for mapping GitHub repositories to local Git checkouts."
+      content="RepoAtlas is a Rust desktop app for mapping multiple GitHub accounts to local Git checkouts and repository context categories."
     />
     <style>
       :root {
@@ -47,7 +47,7 @@
         overflow: hidden;
         background:
           linear-gradient(90deg, rgba(17, 23, 22, 0.94) 0%, rgba(17, 23, 22, 0.74) 44%, rgba(17, 23, 22, 0.16) 100%),
-          url("./assets/dashboard-screenshot.png") center / cover no-repeat;
+          url("./assets/dashboard-preview.svg") center / cover no-repeat;
       }
 
       .hero::after {
@@ -106,6 +106,13 @@
 
       .brand {
         font-family: "Bahnschrift", "Segoe UI", sans-serif;
+      }
+
+      .brand-logo {
+        width: 36px;
+        height: 36px;
+        margin-right: 10px;
+        filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.28));
       }
 
       .nav-links,
@@ -306,7 +313,7 @@
     <header class="hero">
       <nav class="nav" aria-label="Primary">
         <div class="brand">
-          <span class="mark" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
+          <img class="brand-logo" src="./assets/logo.svg" alt="" aria-hidden="true" />
           RepoAtlas
         </div>
         <div class="nav-links">
@@ -315,14 +322,14 @@
         </div>
       </nav>
       <div class="hero-copy">
-        <p class="eyebrow">Desktop GitHub inventory</p>
+        <p class="eyebrow">Multi-account context atlas</p>
         <h1>RepoAtlas</h1>
         <p class="lead">
-          A Windows desktop atlas for mapping any GitHub account's repositories to local Git checkouts, spotting drift,
-          and opening the right project folder without hunting through directories.
+          A Rust desktop atlas for mapping multiple GitHub accounts to local Git checkouts, context categories, sync
+          drift, and one-click project folders.
         </p>
         <div class="hero-actions">
-          <a class="button primary" href="https://github.com/Harzva/RepoAtlas/releases/latest">Download for Windows</a>
+          <a class="button primary" href="https://github.com/Harzva/RepoAtlas/releases/latest">Download Release</a>
           <a class="button" href="https://github.com/Harzva/RepoAtlas#quick-start">Quick Start</a>
         </div>
       </div>
@@ -331,20 +338,20 @@
     <section class="page-section">
       <div class="inner">
         <div class="section-title">
-          <h2>One place for remote repos and local reality.</h2>
+          <h2>One place for GitHub context and local reality.</h2>
           <p>
-            RepoAtlas packages repository cartography into a desktop app: GitHub inventory, local Git discovery, sync
-            comparison, private/public/fork filters, report exports, and safe folder opening.
+            RepoAtlas packages repository cartography into a desktop app: multi-account inventory, local Git discovery,
+            automatic categories, sync comparison, report exports, themes, and safe folder opening.
           </p>
         </div>
         <div class="feature-grid">
           <article class="feature">
-            <h3>GitHub inventory</h3>
-            <p>Lists owned repositories through GitHub CLI, including visibility, language, default branch, and last push.</p>
+            <h3>Multi-account</h3>
+            <p>Scan the current GitHub CLI login or multiple account-router aliases in one merged atlas.</p>
           </article>
           <article class="feature">
-            <h3>Local matching</h3>
-            <p>Scans Git folders and maps remotes back to normalized GitHub repository keys.</p>
+            <h3>Context categories</h3>
+            <p>Classifies repos into Skills, MCP, Memory, Software, Docs, Infra, Data, Research, and more.</p>
           </article>
           <article class="feature">
             <h3>Drift signals</h3>
@@ -352,10 +359,10 @@
           </article>
           <article class="feature">
             <h3>Desktop actions</h3>
-            <p>Open matched folders, copy clone URLs, export CSV/Markdown/JSON, and rescan from the app.</p>
+            <p>Open matched folders, copy clone URLs, export CSV/Markdown/JSON, and switch themes from the app.</p>
           </article>
         </div>
-        <img class="preview" src="./assets/dashboard-screenshot.png" alt="RepoAtlas dashboard screenshot" />
+        <img class="preview" src="./assets/dashboard-preview.svg" alt="RepoAtlas dashboard preview" />
       </div>
     </section>
 
@@ -363,15 +370,16 @@
       <div class="inner install-grid">
         <div>
           <p class="eyebrow">Install</p>
-          <h2>Portable exe, no installer ceremony.</h2>
+          <h2>Windows exe and macOS tar.gz from GitHub Actions.</h2>
           <p>
-            Download the release asset, run it, and sign in with GitHub CLI for live rescans. The first launch starts
-            with an empty seed inventory and fills itself from your account.
+            Download the release asset, run it, and sign in with GitHub CLI for live rescans. Enter multiple accounts on
+            separate lines when your work spans personal, product, and agent-tooling accounts.
           </p>
         </div>
         <code>gh auth login
 git --version
-RepoAtlas-v0.2.0-x64.exe</code>
+RepoAtlas-vX.Y.Z-windows-x64.exe
+RepoAtlas-vX.Y.Z-macos-ARM64.tar.gz</code>
       </div>
     </section>
 
