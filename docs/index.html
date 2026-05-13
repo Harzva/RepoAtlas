@@ -255,6 +255,180 @@
         box-shadow: 0 24px 70px rgba(17, 23, 22, 0.18);
       }
 
+      .setup-guide {
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.55), transparent 34%),
+          var(--paper);
+      }
+
+      .runtime-note {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 18px;
+        width: min(840px, 100%);
+        margin: 0 auto 38px;
+        padding: 24px 28px;
+        color: #073f82;
+        background: #eaf3ff;
+        border: 1px solid #a8ccff;
+        border-radius: 8px;
+        box-shadow: 0 12px 28px rgba(36, 91, 159, 0.14);
+      }
+
+      .note-icon {
+        display: grid;
+        place-items: center;
+        width: 28px;
+        height: 28px;
+        color: #075fff;
+        border: 2px solid currentColor;
+        border-radius: 50%;
+        font: 900 18px/1 "Cascadia Code", "Consolas", monospace;
+      }
+
+      .runtime-note strong {
+        display: block;
+        margin-bottom: 8px;
+        color: #05327a;
+        font: 900 24px/1.15 "Bahnschrift", "Aptos Display", sans-serif;
+      }
+
+      .runtime-note p {
+        margin: 0;
+        color: #083e91;
+        font-size: 18px;
+        line-height: 1.65;
+      }
+
+      .runtime-note a {
+        color: #063fc2;
+        text-underline-offset: 3px;
+      }
+
+      .guide-switch {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 40px;
+      }
+
+      .os-tabs {
+        display: inline-flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        padding: 5px;
+        background: #eceef1;
+        border-radius: 8px;
+      }
+
+      .os-tabs button {
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        min-height: 40px;
+        padding: 9px 16px;
+        color: #111716;
+        background: transparent;
+        border: 0;
+        border-radius: 6px;
+        cursor: pointer;
+        font: 800 17px/1 "Aptos", "Segoe UI", sans-serif;
+      }
+
+      .os-tabs button.active {
+        color: #fff;
+        background: #111716;
+        box-shadow: 0 8px 18px rgba(17, 23, 22, 0.18);
+      }
+
+      .os-tabs svg,
+      .guide-card svg {
+        width: 20px;
+        height: 20px;
+        fill: currentColor;
+      }
+
+      .guide-panel {
+        display: none;
+      }
+
+      .guide-panel.active {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 28px;
+      }
+
+      .guide-card {
+        min-height: 286px;
+        padding: 28px 30px;
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        box-shadow: 0 14px 34px rgba(17, 23, 22, 0.1);
+      }
+
+      .card-title {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+
+      .step-number {
+        display: grid;
+        place-items: center;
+        width: 42px;
+        height: 42px;
+        color: #0a65ff;
+        background: #dcecff;
+        border-radius: 50%;
+        font-weight: 900;
+      }
+
+      .guide-card h3 {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 25px;
+      }
+
+      .guide-card p {
+        margin: 18px 0 34px 60px;
+        color: #52605b;
+        font-size: 17px;
+        line-height: 1.55;
+      }
+
+      .guide-card ul {
+        display: grid;
+        gap: 11px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .guide-card li {
+        position: relative;
+        padding-left: 30px;
+        color: #21302d;
+        font-size: 17px;
+        line-height: 1.45;
+      }
+
+      .guide-card li::before {
+        content: "✓";
+        position: absolute;
+        left: 0;
+        top: 0;
+        display: grid;
+        place-items: center;
+        width: 19px;
+        height: 19px;
+        color: #fff;
+        background: #10b957;
+        border-radius: 50%;
+        font-size: 13px;
+        font-weight: 900;
+      }
+
       .install-band {
         color: #fff;
         background: var(--charcoal);
@@ -303,8 +477,18 @@
 
         .section-title,
         .install-grid,
-        .feature-grid {
+        .feature-grid,
+        .guide-panel.active {
           grid-template-columns: 1fr;
+        }
+
+        .runtime-note {
+          grid-template-columns: 1fr;
+          padding: 20px;
+        }
+
+        .guide-card p {
+          margin-left: 0;
         }
       }
     </style>
@@ -317,6 +501,7 @@
           RepoAtlas
         </div>
         <div class="nav-links">
+          <a href="#install-guide">Install Guide</a>
           <a href="https://github.com/Harzva/RepoAtlas">GitHub</a>
           <a href="https://github.com/Harzva/RepoAtlas/releases/latest">Release</a>
         </div>
@@ -330,6 +515,7 @@
         </p>
         <div class="hero-actions">
           <a class="button primary" href="https://github.com/Harzva/RepoAtlas/releases/latest">Download Release</a>
+          <a class="button" href="#install-guide">Install Guide</a>
           <a class="button" href="https://github.com/Harzva/RepoAtlas#quick-start">Quick Start</a>
         </div>
       </div>
@@ -366,6 +552,220 @@
       </div>
     </section>
 
+    <section id="install-guide" class="page-section setup-guide">
+      <div class="inner">
+        <aside class="runtime-note" aria-label="Runtime dependency note">
+          <span class="note-icon" aria-hidden="true">!</span>
+          <div>
+            <strong>重要提示：运行环境依赖</strong>
+            <p>
+              RepoAtlas 是 Rust WebView 桌面应用。Windows 通常需要 Microsoft Edge WebView2 Runtime；实时扫描还需要
+              <a href="https://git-scm.com/downloads">Git</a> 与
+              <a href="https://cli.github.com/">GitHub CLI</a>。如果窗口空白或无法登录，请先安装
+              <a href="https://developer.microsoft.com/microsoft-edge/webview2/">WebView2 Runtime</a>。
+            </p>
+          </div>
+        </aside>
+
+        <div class="guide-switch">
+          <div class="os-tabs" role="tablist" aria-label="Installation guides">
+            <button class="active" type="button" data-install-tab="windows" aria-selected="true">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18v13H3V5Zm2 2v9h14V7H5Zm5 12h4v2h-4v-2Z" /></svg>
+              Windows
+            </button>
+            <button type="button" data-install-tab="macos" aria-selected="false">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18v13H3V5Zm2 2v9h14V7H5Zm5 12h4v2h-4v-2Z" /></svg>
+              macOS
+            </button>
+            <button type="button" data-install-tab="source" aria-selected="false">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v12H4V5Zm2 2v8h12V7H6Zm4 12h4v2h-4v-2Z" /></svg>
+              Source
+            </button>
+          </div>
+        </div>
+
+        <div class="guide-panel active" data-install-panel="windows">
+          <article class="guide-card">
+            <div class="card-title">
+              <span class="step-number">1</span>
+              <h3>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4h2v8l3-3 1.4 1.4L12 15.8l-5.4-5.4L8 9l3 3V4ZM5 18h14v2H5v-2Z" /></svg>
+                下载安装程序
+              </h3>
+            </div>
+            <p>从 GitHub Release 下载 Windows 版本。</p>
+            <ul>
+              <li>点击页面上方 Download Release</li>
+              <li>选择 `RepoAtlas-vX.Y.Z-windows-x64.exe`</li>
+              <li>等待下载完成并确认文件完整</li>
+              <li>如果系统拦截，选择保留来自 GitHub 的文件</li>
+            </ul>
+          </article>
+
+          <article class="guide-card">
+            <div class="card-title">
+              <span class="step-number">2</span>
+              <h3>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 20 5v6c0 5-3.4 9.4-8 11-4.6-1.6-8-6-8-11V5l8-3Zm0 2.2L6 6.4V11c0 3.8 2.4 7.2 6 8.8 3.6-1.6 6-5 6-8.8V6.4l-6-2.2Z" /></svg>
+                准备依赖
+              </h3>
+            </div>
+            <p>先让本机具备 GitHub 扫描能力。</p>
+            <ul>
+              <li>安装 Git 与 GitHub CLI</li>
+              <li>确认 `git --version` 可以运行</li>
+              <li>确认 `gh --version` 可以运行</li>
+              <li>空白窗口时安装 WebView2 Runtime</li>
+            </ul>
+          </article>
+
+          <article class="guide-card">
+            <div class="card-title">
+              <span class="step-number">3</span>
+              <h3>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.8 20.2 6v12L12 22.2 3.8 18V6L12 1.8Zm0 2.2L6 7.1v9.8l6 3.1 6-3.1V7.1L12 4Zm-1 5h2v4h3v2h-5V9Z" /></svg>
+                完成登录
+              </h3>
+            </div>
+            <p>首次使用只需要认证一次。</p>
+            <ul>
+              <li>打开 RepoAtlas 后点击侧边栏 Login</li>
+              <li>在默认浏览器完成 GitHub 授权</li>
+              <li>等待进度条显示 GitHub login complete</li>
+              <li>已有便携 `gh.exe` 时填写 custom gh path</li>
+            </ul>
+          </article>
+
+          <article class="guide-card">
+            <div class="card-title">
+              <span class="step-number">4</span>
+              <h3>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7V5Z" /></svg>
+                开始扫描
+              </h3>
+            </div>
+            <p>把 GitHub 和本地项目连接起来。</p>
+            <ul>
+              <li>账号框留空可扫描当前 `gh` 登录</li>
+              <li>多账号时一行填写一个账号或别名</li>
+              <li>设置本地 scan roots 以匹配文件夹</li>
+              <li>点击 Refresh 查看进度和仓库结果</li>
+            </ul>
+          </article>
+        </div>
+
+        <div class="guide-panel" data-install-panel="macos">
+          <article class="guide-card">
+            <div class="card-title">
+              <span class="step-number">1</span>
+              <h3>下载 macOS 包</h3>
+            </div>
+            <p>从 Release 页面下载 macOS artifact。</p>
+            <ul>
+              <li>选择 `RepoAtlas-vX.Y.Z-macos-ARM64.tar.gz`</li>
+              <li>解压到一个固定目录</li>
+              <li>保留包内 README.txt</li>
+              <li>当前 Release 面向 Apple Silicon runner 构建</li>
+            </ul>
+          </article>
+          <article class="guide-card">
+            <div class="card-title">
+              <span class="step-number">2</span>
+              <h3>准备命令行工具</h3>
+            </div>
+            <p>macOS 使用系统 WebKit，实时扫描仍依赖 Git 与 GitHub CLI。</p>
+            <ul>
+              <li>安装 Git 与 GitHub CLI</li>
+              <li>运行 `gh auth login --web` 或在应用内 Login</li>
+              <li>确认 `gh auth status` 显示已登录</li>
+              <li>准备需要扫描的本地项目目录</li>
+            </ul>
+          </article>
+          <article class="guide-card">
+            <div class="card-title">
+              <span class="step-number">3</span>
+              <h3>启动 RepoAtlas</h3>
+            </div>
+            <p>从 Terminal 运行包内二进制。</p>
+            <ul>
+              <li>进入解压目录</li>
+              <li>执行 `./RepoAtlas`</li>
+              <li>如被 Gatekeeper 拦截，在系统设置中允许打开</li>
+              <li>首次打开后完成新手教程</li>
+            </ul>
+          </article>
+          <article class="guide-card">
+            <div class="card-title">
+              <span class="step-number">4</span>
+              <h3>配置扫描</h3>
+            </div>
+            <p>把账号与本地目录交给扫描台。</p>
+            <ul>
+              <li>多账号一行一个：例如 Harzva、saihao</li>
+              <li>scan roots 填写本地代码目录</li>
+              <li>需要最新分支状态时开启 Fetch</li>
+              <li>点击 Refresh 查看匹配结果</li>
+            </ul>
+          </article>
+        </div>
+
+        <div class="guide-panel" data-install-panel="source">
+          <article class="guide-card">
+            <div class="card-title">
+              <span class="step-number">1</span>
+              <h3>克隆源码</h3>
+            </div>
+            <p>适合开发者或暂未覆盖的系统。</p>
+            <ul>
+              <li>`git clone https://github.com/Harzva/RepoAtlas.git`</li>
+              <li>`cd RepoAtlas`</li>
+              <li>安装稳定版 Rust 工具链</li>
+              <li>确认平台具备 Wry/WebView 依赖</li>
+            </ul>
+          </article>
+          <article class="guide-card">
+            <div class="card-title">
+              <span class="step-number">2</span>
+              <h3>运行开发版</h3>
+            </div>
+            <p>本地启动桌面应用并嵌入 dashboard。</p>
+            <ul>
+              <li>执行 `cargo run`</li>
+              <li>等待 Rust 编译完成</li>
+              <li>应用会打开本地 WebView 窗口</li>
+              <li>扫描需要本机 Git 和 GitHub CLI</li>
+            </ul>
+          </article>
+          <article class="guide-card">
+            <div class="card-title">
+              <span class="step-number">3</span>
+              <h3>执行检查</h3>
+            </div>
+            <p>提交前先做基本回归。</p>
+            <ul>
+              <li>`cargo fmt --all -- --check`</li>
+              <li>`cargo check --locked`</li>
+              <li>`cargo test --locked`</li>
+              <li>`node --check public/app.js`</li>
+            </ul>
+          </article>
+          <article class="guide-card">
+            <div class="card-title">
+              <span class="step-number">4</span>
+              <h3>构建发布包</h3>
+            </div>
+            <p>Release 仍推荐交给 GitHub Actions。</p>
+            <ul>
+              <li>本地可执行 `cargo build --release`</li>
+              <li>Windows/macOS artifact 由 tag workflow 产出</li>
+              <li>推送 `v*` 标签会创建 GitHub Release</li>
+              <li>不要提交本地 inventory 或凭证</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </section>
+
     <section class="page-section install-band">
       <div class="inner install-grid">
         <div>
@@ -386,5 +786,20 @@ RepoAtlas-vX.Y.Z-macos-ARM64.tar.gz</code>
     <footer>
       Built for GitHub repository mapping. MIT licensed.
     </footer>
+    <script>
+      document.querySelectorAll("[data-install-tab]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const target = button.dataset.installTab;
+          document.querySelectorAll("[data-install-tab]").forEach((item) => {
+            const active = item === button;
+            item.classList.toggle("active", active);
+            item.setAttribute("aria-selected", active ? "true" : "false");
+          });
+          document.querySelectorAll("[data-install-panel]").forEach((panel) => {
+            panel.classList.toggle("active", panel.dataset.installPanel === target);
+          });
+        });
+      });
+    </script>
   </body>
 </html>

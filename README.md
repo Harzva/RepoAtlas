@@ -15,6 +15,7 @@
 
 [Download](https://github.com/Harzva/RepoAtlas/releases/latest) |
 [Website](https://harzva.github.io/RepoAtlas/) |
+[Install Guide](https://harzva.github.io/RepoAtlas/#install-guide) |
 [Quick Start](#quick-start) |
 [Workflow](#workflow)
 
@@ -42,6 +43,9 @@ GitHub becomes a real context layer only when remote repositories, local folders
 
 ## Quick Start
 
+> [!IMPORTANT]
+> RepoAtlas is a Rust WebView desktop app. Windows users may need the Microsoft Edge WebView2 Runtime; live rescans also require Git and GitHub CLI. If the app opens a blank window or the Login button cannot start authentication, install [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/), [Git](https://git-scm.com/downloads), and [GitHub CLI](https://cli.github.com/) first.
+
 ### Download
 
 1. Open [Latest Release](https://github.com/Harzva/RepoAtlas/releases/latest).
@@ -59,6 +63,23 @@ Leave the account field empty to scan the current `gh` login. Enter multiple acc
 Harzva
 saihao
 ```
+
+### Install Tutorial
+
+| Step | Windows | macOS | Source build |
+|---|---|---|---|
+| 1. Download | Get `RepoAtlas-vX.Y.Z-windows-x64.exe` from the latest release. | Get `RepoAtlas-vX.Y.Z-macos-ARM64.tar.gz` and extract it. | `git clone https://github.com/Harzva/RepoAtlas.git` |
+| 2. Prepare | Install Git, GitHub CLI, and WebView2 Runtime if the window is blank. | Install Git and GitHub CLI. macOS uses system WebKit. | Install stable Rust, Git, GitHub CLI, and platform WebView dependencies. |
+| 3. Login | Click `Login` in RepoAtlas or run `gh auth login --web`. | Click `Login` in RepoAtlas or run `gh auth login --web`. | Run `gh auth login --web` before `cargo run` for live scans. |
+| 4. Scan | Add accounts and scan roots, then click `Refresh`. | Run `./RepoAtlas`, add accounts and scan roots, then click `Refresh`. | Run `cargo run`, then use the same in-app scan flow. |
+
+Recommended first-run checklist:
+
+- Confirm `git --version` works.
+- Confirm `gh --version` works.
+- Click `Check` in the RepoAtlas sidebar to verify authentication.
+- Click `Login` only when `gh` is installed but not authenticated.
+- Use custom `gh.exe` path when you carry a portable GitHub CLI.
 
 ### Beginner Login Guide
 
