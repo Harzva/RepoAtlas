@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Harzva Repo Atlas</title>
+    <title>RepoAtlas</title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
@@ -18,13 +18,18 @@
           </div>
           <div>
             <p class="eyebrow">Desktop inventory</p>
-            <h1>Repo Atlas</h1>
+            <h1>RepoAtlas</h1>
           </div>
         </div>
 
         <label class="search-box">
           <span>Search</span>
           <input id="searchInput" type="search" placeholder="Repository, language, path" autocomplete="off" />
+        </label>
+
+        <label class="account-box">
+          <span>GitHub account</span>
+          <input id="accountInput" type="text" placeholder="current gh login" autocomplete="off" />
         </label>
 
         <section class="control-group" aria-label="Status filter">
@@ -71,7 +76,7 @@
           <p class="control-title">Scan</p>
           <label class="scan-box">
             <span>Roots</span>
-            <textarea id="scanRootsInput" rows="4" spellcheck="false" placeholder="D:\study\code"></textarea>
+            <textarea id="scanRootsInput" rows="4" spellcheck="false" placeholder="C:\Users\you\Projects"></textarea>
           </label>
           <div class="scan-row">
             <label class="toggle-row">
@@ -86,9 +91,9 @@
         </section>
 
         <nav class="report-links" aria-label="Reports">
-          <a href="/reports/harzva-github-repos.json" target="_blank" rel="noreferrer">JSON</a>
-          <a href="/reports/harzva-github-repos-full.csv" target="_blank" rel="noreferrer">CSV</a>
-          <a href="/reports/harzva-github-repos-full.md" target="_blank" rel="noreferrer">MD</a>
+          <a href="/reports/repo-atlas.json" target="_blank" rel="noreferrer">JSON</a>
+          <a href="/reports/repo-atlas-full.csv" target="_blank" rel="noreferrer">CSV</a>
+          <a href="/reports/repo-atlas-full.md" target="_blank" rel="noreferrer">MD</a>
         </nav>
       </aside>
 
@@ -96,7 +101,7 @@
         <header class="top-bar">
           <div>
             <p id="generatedAt" class="eyebrow">Inventory</p>
-            <h2>GitHub Repository Atlas</h2>
+            <h2>RepoAtlas</h2>
           </div>
           <div class="top-actions">
             <button id="refreshButton" class="icon-button" type="button" title="Refresh inventory" aria-label="Refresh inventory">

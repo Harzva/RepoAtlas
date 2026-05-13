@@ -26,10 +26,11 @@ use wry::WebViewBuilder;
 static PUBLIC_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/public");
 static SEED_INVENTORY: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/data/harzva-github-repos.json"
+    "/data/seed-inventory.json"
 ));
 
-const DEFAULT_ACCOUNT: &str = "Harzva";
+const APP_NAME: &str = "RepoAtlas";
+const INVENTORY_FILE_NAME: &str = "inventory.json";
 const DEFAULT_MAX_DEPTH: usize = 10;
 
 #[derive(Clone)]
@@ -54,7 +55,7 @@ fn main() -> wry::Result<()> {
     let port = start_http_server(state).expect("start local HTTP server");
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
-        .with_title("Harzva Repo Atlas")
+        .with_title(APP_NAME)
         .with_inner_size(LogicalSize::new(1440.0, 960.0))
         .with_min_inner_size(LogicalSize::new(1100.0, 720.0))
         .build(&event_loop)
@@ -82,15 +83,14 @@ fn main() -> wry::Result<()> {
 }
 
 fn inventory_path() -> PathBuf {
-    if let Some(path) = env::var_os("HARZVA_REPO_ATLAS_DATA") {
+    if let Some(path) = env::var_os("REPO_ATLAS_DATA") {
         return PathBuf::from(path);
     }
     let base = env::var_os("APPDATA")
         .map(PathBuf::from)
         .or_else(|| env::var_os("LOCALAPPDATA").map(PathBuf::from))
         .unwrap_or_else(env::temp_dir);
-    base.join("Harzva Repo Atlas")
-        .join("harzva-github-repos.json")
+    base.join(APP_NAME).join(INVENTORY_FILE_NAME)
 }
 
 fn ensure_inventory(path: &Path) -> Result<()> {
@@ -224,19 +224,16 @@ fn flatten_inventory_result(path: &Path) -> Value {
 
 fn refresh_response(body: &[u8], state: &AppState) -> HttpResponse {
     let payload: Value = serde_json::from_slice(body).unwrap_or_else(|_| json!({}));
-    let account = payload
-        .get("account")
-        .and_then(Value::as_str)
-        .unwrap_or(DEFAULT_ACCOUNT);
+    let account = request_account(&payload);
     let fetch = payload
         .get("fetch")
         .and_then(Value::as_bool)
-        .unwrap_or(true);
+        .unwrap_or_else(default_fetch);
     let max_depth = payload
         .get("maxDepth")
         .and_then(Value::as_u64)
         .map(|value| value as usize)
-        .unwrap_or(DEFAULT_MAX_DEPTH);
+        .unwrap_or_else(default_max_depth);
     let scan_roots = payload
         .get("scanRoots")
         .and_then(Value::as_array)
@@ -249,7 +246,7 @@ fn refresh_response(body: &[u8], state: &AppState) -> HttpResponse {
         })
         .unwrap_or_else(default_scan_roots);
 
-    match scan_inventory(account, &scan_roots, max_depth, fetch).and_then(|inventory| {
+    match scan_inventory(&account, &scan_roots, max_depth, fetch).and_then(|inventory| {
         write_inventory(&state.inventory_path, &inventory)?;
         Ok(inventory)
     }) {
@@ -263,6 +260,19 @@ fn refresh_response(body: &[u8], state: &AppState) -> HttpResponse {
         }
         Err(error) => json_response(500, json!({ "ok": false, "error": error.to_string() })),
     }
+}
+
+fn request_account(payload: &Value) -> String {
+    if let Some(account) = payload
+        .get("account")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        return account.to_string();
+    }
+
+    env::var("REPO_ATLAS_ACCOUNT").unwrap_or_default()
 }
 
 fn open_local_response(body: &[u8], state: &AppState) -> HttpResponse {
@@ -307,11 +317,11 @@ fn open_local_response(body: &[u8], state: &AppState) -> HttpResponse {
 
 fn report_response(path: &str, state: &AppState) -> HttpResponse {
     match path.trim_start_matches("/reports/") {
-        "harzva-github-repos.json" => match read_inventory(&state.inventory_path) {
+        "repo-atlas.json" => match read_inventory(&state.inventory_path) {
             Ok(value) => json_response(200, value),
             Err(error) => json_response(500, json!({ "ok": false, "error": error.to_string() })),
         },
-        "harzva-github-repos-full.csv" => match read_inventory(&state.inventory_path) {
+        "repo-atlas-full.csv" => match read_inventory(&state.inventory_path) {
             Ok(value) => bytes_response(
                 200,
                 "text/csv; charset=utf-8",
@@ -319,7 +329,7 @@ fn report_response(path: &str, state: &AppState) -> HttpResponse {
             ),
             Err(error) => json_response(500, json!({ "ok": false, "error": error.to_string() })),
         },
-        "harzva-github-repos-full.md" => match read_inventory(&state.inventory_path) {
+        "repo-atlas-full.md" => match read_inventory(&state.inventory_path) {
             Ok(value) => bytes_response(
                 200,
                 "text/markdown; charset=utf-8",
@@ -572,6 +582,8 @@ fn flatten_inventory(inventory: &Value) -> Value {
             "statusCounts": status_counts,
             "languageCounts": language_counts,
             "scanRoots": inventory.get("scanRoots").cloned().unwrap_or_else(|| json!([])),
+            "accountAlias": inventory.get("accountAlias").and_then(Value::as_str).unwrap_or(""),
+            "accountLogin": inventory.get("accountLogin").and_then(Value::as_str).unwrap_or(""),
             "versionCheckUsedFetch": inventory.get("versionCheckUsedFetch").cloned().unwrap_or(Value::Null),
         },
         "rows": rows,
@@ -647,15 +659,40 @@ fn normalize_path_key(path: &Path) -> String {
 }
 
 fn default_scan_roots() -> Vec<PathBuf> {
-    if let Some(raw) = env::var_os("HARZVA_REPO_SCAN_ROOTS") {
+    if let Some(raw) = env::var_os("REPO_ATLAS_SCAN_ROOTS") {
         return env::split_paths(&raw).collect();
     }
-    let mut roots = vec![env::current_dir().unwrap_or_else(|_| PathBuf::from("."))];
-    let study_code = PathBuf::from(r"D:\study\code");
-    if study_code.exists() {
-        roots.push(study_code);
+    let mut roots = BTreeSet::new();
+    roots.insert(env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+    if let Some(home) = env::var_os("USERPROFILE").or_else(|| env::var_os("HOME")) {
+        let home = PathBuf::from(home);
+        for candidate in [
+            home.join("source").join("repos"),
+            home.join("Documents").join("GitHub"),
+            home.join("Projects"),
+            home.join("repos"),
+        ] {
+            if candidate.exists() {
+                roots.insert(candidate);
+            }
+        }
     }
-    roots
+    roots.into_iter().collect()
+}
+
+fn default_max_depth() -> usize {
+    env::var("REPO_ATLAS_MAX_DEPTH")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(DEFAULT_MAX_DEPTH)
+}
+
+fn default_fetch() -> bool {
+    let raw = env::var("REPO_ATLAS_NO_FETCH").unwrap_or_default();
+    !matches!(
+        raw.trim().to_ascii_lowercase().as_str(),
+        "1" | "true" | "yes"
+    )
 }
 
 fn scan_inventory(
@@ -665,12 +702,31 @@ fn scan_inventory(
     fetch: bool,
 ) -> Result<Value> {
     let remote_repos = list_remote_repos(account)?;
+    let account_login = remote_repos
+        .first()
+        .and_then(|repo| repo.get("accountLogin"))
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
+    let account_alias = if account.trim().is_empty() {
+        account_login.clone()
+    } else {
+        account.trim().to_string()
+    };
     let git_roots = find_git_roots(scan_roots, max_depth);
     let local_repos = git_roots
         .iter()
         .map(|path| inspect_local_repo(path, fetch))
         .collect::<Vec<_>>();
     let mut inventory = merge_inventory(remote_repos, local_repos);
+    inventory
+        .as_object_mut()
+        .unwrap()
+        .insert("accountAlias".into(), Value::from(account_alias));
+    inventory
+        .as_object_mut()
+        .unwrap()
+        .insert("accountLogin".into(), Value::from(account_login));
     inventory.as_object_mut().unwrap().insert(
         "scanRoots".into(),
         Value::Array(
@@ -718,7 +774,14 @@ fn list_remote_repos(account: &str) -> Result<Vec<Value>> {
         let object = repo
             .as_object_mut()
             .ok_or_else(|| anyhow!("invalid repo item"))?;
-        object.insert("accountAlias".into(), Value::from(account));
+        object.insert(
+            "accountAlias".into(),
+            Value::from(if account.trim().is_empty() {
+                login
+            } else {
+                account
+            }),
+        );
         object.insert("accountLogin".into(), Value::from(login));
         object.insert("repoKey".into(), Value::from(key));
         remotes.push(repo);
@@ -777,7 +840,7 @@ fn gh(account: &str, args: &[&str]) -> Result<ProcOutput> {
 
 fn gh_raw(account: &str, args: &[&str]) -> ProcOutput {
     let router = router_path();
-    let output = if router.exists() {
+    let output = if router.exists() && !account.trim().is_empty() {
         let mut command = Command::new("python");
         command.arg(router).arg("--account").arg(account).arg("--");
         for arg in args {
@@ -1236,7 +1299,7 @@ fn render_markdown(inventory: &Value) -> String {
         .cloned()
         .unwrap_or_default();
     let mut lines = vec![
-        "# Harzva GitHub Repositories".into(),
+        "# GitHub Repository Inventory".into(),
         "".into(),
         format!("Generated: {}", summary.get("generatedAt").and_then(Value::as_str).unwrap_or("")),
         "".into(),

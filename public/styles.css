@@ -135,6 +135,7 @@ h3 {
 }
 
 .search-box,
+.account-box,
 .select-box,
 .scan-box,
 .depth-box {
@@ -147,6 +148,7 @@ h3 {
 }
 
 .search-box input,
+.account-box input,
 .select-box select,
 .scan-box textarea,
 .depth-box input {
@@ -161,6 +163,7 @@ h3 {
 }
 
 .search-box input:focus,
+.account-box input:focus,
 .select-box select:focus,
 .scan-box textarea:focus,
 .depth-box input:focus {

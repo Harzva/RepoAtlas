@@ -1,12 +1,12 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Harzva Repo Atlas</title>
+    <title>RepoAtlas</title>
     <meta
       name="description"
-      content="Harzva Repo Atlas is a Windows desktop app for mapping GitHub repositories to local Git checkouts."
+      content="RepoAtlas is a Windows desktop app for mapping GitHub repositories to local Git checkouts."
     />
     <style>
       :root {
@@ -46,7 +46,7 @@
         color: #fff;
         overflow: hidden;
         background:
-          linear-gradient(90deg, rgba(17, 23, 22, 0.94) 0%, rgba(17, 23, 22, 0.76) 42%, rgba(17, 23, 22, 0.18) 100%),
+          linear-gradient(90deg, rgba(17, 23, 22, 0.94) 0%, rgba(17, 23, 22, 0.74) 44%, rgba(17, 23, 22, 0.16) 100%),
           url("./assets/dashboard-screenshot.png") center / cover no-repeat;
       }
 
@@ -76,7 +76,6 @@
         grid-template-columns: repeat(2, 16px);
         gap: 4px;
         margin-right: 10px;
-        vertical-align: middle;
       }
 
       .mark span {
@@ -84,7 +83,6 @@
         width: 16px;
         height: 16px;
         background: #fff;
-        border: 1px solid rgba(255, 255, 255, 0.65);
       }
 
       .mark span:nth-child(2) {
@@ -99,28 +97,31 @@
         background: #e65a45;
       }
 
-      .brand {
-        display: flex;
+      .brand,
+      .button {
+        display: inline-flex;
         align-items: center;
-        font: 800 15px/1 "Bahnschrift", "Segoe UI", sans-serif;
+        font-weight: 800;
       }
 
-      .nav-links {
+      .brand {
+        font-family: "Bahnschrift", "Segoe UI", sans-serif;
+      }
+
+      .nav-links,
+      .hero-actions {
         display: flex;
-        gap: 8px;
+        gap: 10px;
         flex-wrap: wrap;
       }
 
       .nav-links a,
       .button {
-        display: inline-flex;
-        align-items: center;
         min-height: 38px;
         padding: 9px 13px;
         border: 1px solid rgba(255, 255, 255, 0.28);
         border-radius: 6px;
         text-decoration: none;
-        font-weight: 800;
       }
 
       .nav-links a:hover,
@@ -153,12 +154,17 @@
 
       h1 {
         max-width: 680px;
-        font-size: clamp(44px, 8vw, 96px);
-        line-height: 0.94;
+        font-size: clamp(52px, 9vw, 112px);
+        line-height: 0.92;
+      }
+
+      h2 {
+        font-size: clamp(30px, 4vw, 54px);
+        line-height: 1;
       }
 
       .lead {
-        max-width: 640px;
+        max-width: 650px;
         margin: 18px 0 0;
         color: rgba(255, 255, 255, 0.86);
         font-size: 19px;
@@ -166,9 +172,6 @@
       }
 
       .hero-actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
         margin-top: 26px;
       }
 
@@ -193,11 +196,6 @@
         gap: 36px;
         align-items: start;
         margin-bottom: 28px;
-      }
-
-      h2 {
-        font-size: clamp(30px, 4vw, 54px);
-        line-height: 1;
       }
 
       .section-title p {
@@ -233,10 +231,6 @@
 
       .feature:nth-child(4) {
         border-top-color: var(--green);
-      }
-
-      .feature h3 {
-        font-size: 19px;
       }
 
       .feature p {
@@ -313,23 +307,23 @@
       <nav class="nav" aria-label="Primary">
         <div class="brand">
           <span class="mark" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
-          Harzva Repo Atlas
+          RepoAtlas
         </div>
         <div class="nav-links">
-          <a href="https://github.com/Harzva/harzva-repo-atlas">GitHub</a>
-          <a href="https://github.com/Harzva/harzva-repo-atlas/releases/latest">Release</a>
+          <a href="https://github.com/Harzva/RepoAtlas">GitHub</a>
+          <a href="https://github.com/Harzva/RepoAtlas/releases/latest">Release</a>
         </div>
       </nav>
       <div class="hero-copy">
         <p class="eyebrow">Desktop GitHub inventory</p>
-        <h1>Harzva Repo Atlas</h1>
+        <h1>RepoAtlas</h1>
         <p class="lead">
-          A Windows desktop atlas for mapping Harzva GitHub repositories to local Git checkouts, spotting drift, and
-          opening the right project folder without hunting through directories.
+          A Windows desktop atlas for mapping any GitHub account's repositories to local Git checkouts, spotting drift,
+          and opening the right project folder without hunting through directories.
         </p>
         <div class="hero-actions">
-          <a class="button primary" href="https://github.com/Harzva/harzva-repo-atlas/releases/latest">Download for Windows</a>
-          <a class="button" href="https://github.com/Harzva/harzva-repo-atlas#quick-start">Quick Start</a>
+          <a class="button primary" href="https://github.com/Harzva/RepoAtlas/releases/latest">Download for Windows</a>
+          <a class="button" href="https://github.com/Harzva/RepoAtlas#quick-start">Quick Start</a>
         </div>
       </div>
     </header>
@@ -339,8 +333,8 @@
         <div class="section-title">
           <h2>One place for remote repos and local reality.</h2>
           <p>
-            Repo Atlas packages the cartography workflow into a desktop app: remote repository inventory, local Git
-            discovery, sync state comparison, private/public/fork filters, report exports, and safe folder opening.
+            RepoAtlas packages repository cartography into a desktop app: GitHub inventory, local Git discovery, sync
+            comparison, private/public/fork filters, report exports, and safe folder opening.
           </p>
         </div>
         <div class="feature-grid">
@@ -350,7 +344,7 @@
           </article>
           <article class="feature">
             <h3>Local matching</h3>
-            <p>Scans Git folders and maps remotes back to GitHub repository keys.</p>
+            <p>Scans Git folders and maps remotes back to normalized GitHub repository keys.</p>
           </article>
           <article class="feature">
             <h3>Drift signals</h3>
@@ -358,10 +352,10 @@
           </article>
           <article class="feature">
             <h3>Desktop actions</h3>
-            <p>Open matched local folders, copy clone URLs, export CSV/Markdown/JSON, and rescan from the app.</p>
+            <p>Open matched folders, copy clone URLs, export CSV/Markdown/JSON, and rescan from the app.</p>
           </article>
         </div>
-        <img class="preview" src="./assets/dashboard-screenshot.png" alt="Harzva Repo Atlas dashboard screenshot" />
+        <img class="preview" src="./assets/dashboard-screenshot.png" alt="RepoAtlas dashboard screenshot" />
       </div>
     </section>
 
@@ -371,18 +365,18 @@
           <p class="eyebrow">Install</p>
           <h2>Portable exe, no installer ceremony.</h2>
           <p>
-            Download the release asset, run it, and sign in with GitHub CLI if you want live rescans. The bundled seed
-            inventory keeps the dashboard useful immediately.
+            Download the release asset, run it, and sign in with GitHub CLI for live rescans. The first launch starts
+            with an empty seed inventory and fills itself from your account.
           </p>
         </div>
         <code>gh auth login
 git --version
-Harzva-Repo-Atlas-v0.1.1-x64.exe</code>
+RepoAtlas-v0.2.0-x64.exe</code>
       </div>
     </section>
 
     <footer>
-      Built for the Harzva repository map. MIT licensed.
+      Built for GitHub repository mapping. MIT licensed.
     </footer>
   </body>
 </html>

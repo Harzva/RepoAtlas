@@ -1,10 +1,10 @@
 [package]
-name = "harzva-repo-atlas"
-version = "0.1.1"
+name = "repo-atlas"
+version = "0.2.0"
 edition = "2021"
-authors = ["Harzva"]
+authors = ["RepoAtlas contributors"]
 license = "MIT"
-description = "Rust desktop atlas for Harzva GitHub repositories and local Git checkouts."
+description = "Rust desktop atlas for GitHub repositories and local Git checkouts."
 
 [dependencies]
 anyhow = "1.0"

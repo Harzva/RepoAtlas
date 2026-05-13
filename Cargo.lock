@@ -851,19 +851,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "harzva-repo-atlas"
-version = "0.1.1"
-dependencies = [
- "anyhow",
- "chrono",
- "include_dir",
- "serde_json",
- "tao",
- "walkdir",
- "wry",
-]
-
-[[package]]
 name = "hashbrown"
 version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1720,6 +1707,19 @@ dependencies = [
  "getrandom",
  "libredox",
  "thiserror 2.0.18",
+]
+
+[[package]]
+name = "repo-atlas"
+version = "0.2.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "include_dir",
+ "serde_json",
+ "tao",
+ "walkdir",
+ "wry",
 ]
 
 [[package]]

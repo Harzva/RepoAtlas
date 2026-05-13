@@ -37,6 +37,7 @@ const icons = {
 const elements = {
   searchInput: document.querySelector("#searchInput"),
   statusFilters: document.querySelector("#statusFilters"),
+  accountInput: document.querySelector("#accountInput"),
   visibilityFilters: document.querySelector("#visibilityFilters"),
   forkFilters: document.querySelector("#forkFilters"),
   sortSelect: document.querySelector("#sortSelect"),
@@ -134,6 +135,10 @@ function hydrateScanControls() {
   }
   if (typeof state.summary.versionCheckUsedFetch === "boolean") {
     elements.fetchToggle.checked = state.summary.versionCheckUsedFetch;
+  }
+  const account = state.summary.accountAlias || state.summary.accountLogin || "";
+  if (account && !elements.accountInput.value.trim()) {
+    elements.accountInput.value = account;
   }
 }
 
@@ -462,10 +467,13 @@ elements.refreshButton.addEventListener("click", async () => {
   const roots = parseScanRoots();
   const maxDepth = Number.parseInt(elements.maxDepthInput.value, 10);
   const payload = {
-    account: "Harzva",
     fetch: elements.fetchToggle.checked,
     maxDepth: Number.isFinite(maxDepth) ? maxDepth : 10,
   };
+  const account = elements.accountInput.value.trim();
+  if (account) {
+    payload.account = account;
+  }
   if (roots.length) {
     payload.scanRoots = roots;
   }

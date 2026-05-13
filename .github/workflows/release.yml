@@ -45,12 +45,12 @@ jobs:
           $version = "${{ github.ref_name }}"
           if (-not $version -or $version -eq "refs/heads/main") { $version = "manual" }
           New-Item -ItemType Directory -Force -Path release | Out-Null
-          Copy-Item target/release/harzva-repo-atlas.exe "release/Harzva-Repo-Atlas-$version-x64.exe"
+          Copy-Item target/release/repo-atlas.exe "release/RepoAtlas-$version-x64.exe"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Harzva-Repo-Atlas-Windows-x64
+          name: RepoAtlas-Windows-x64
           path: release/*.exe
 
       - name: Publish GitHub Release
