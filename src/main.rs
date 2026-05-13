@@ -719,7 +719,7 @@ fn flatten_inventory(inventory: &Value) -> Value {
             .unwrap_or("");
         let categories = classify_repo_categories(name, description, &local_path_text);
         let category = primary_category(&categories);
-        let category_label = category_label(&category);
+        let primary_label = category_label(&category);
         let category_labels = categories
             .iter()
             .map(|category| Value::from(category_label(category)))
@@ -752,7 +752,7 @@ fn flatten_inventory(inventory: &Value) -> Value {
             "updatedAt": remote.get("updatedAt").and_then(Value::as_str).unwrap_or(""),
             "description": description,
             "category": category,
-            "categoryLabel": category_label,
+            "categoryLabel": primary_label,
             "categories": categories,
             "categoryLabels": category_labels,
             "localStatus": local_status,
@@ -789,7 +789,7 @@ fn flatten_inventory(inventory: &Value) -> Value {
                 .unwrap_or_default();
             let categories = classify_repo_categories(&remote_text, path, &local_context);
             let category = primary_category(&categories);
-            let category_label = category_label(&category);
+            let primary_label = category_label(&category);
             let category_labels = categories
                 .iter()
                 .map(|category| Value::from(category_label(category)))
@@ -800,7 +800,7 @@ fn flatten_inventory(inventory: &Value) -> Value {
                 "branch": local.get("branch").and_then(Value::as_str).unwrap_or(""),
                 "status": local.get("status").and_then(Value::as_str).unwrap_or("unknown"),
                 "category": category,
-                "categoryLabel": category_label,
+                "categoryLabel": primary_label,
                 "categories": categories,
                 "categoryLabels": category_labels,
                 "head": local.get("head").and_then(Value::as_str).unwrap_or(""),
