@@ -65,6 +65,7 @@
             <button class="active" type="button" data-category="all">All</button>
             <button type="button" data-category="skills">Skills</button>
             <button type="button" data-category="mcp">MCP</button>
+            <button type="button" data-category="hook">Hook</button>
             <button type="button" data-category="memory">Memory</button>
             <button type="button" data-category="software">Software</button>
             <button type="button" data-category="docs">Docs</button>
@@ -107,7 +108,10 @@
         <label class="select-box">
           <span>Sort</span>
           <select id="sortSelect">
+            <option value="time-desc">Newest activity</option>
+            <option value="time-asc">Oldest activity</option>
             <option value="pushed-desc">Last pushed</option>
+            <option value="pushed-asc">Oldest pushed</option>
             <option value="name-asc">Name A-Z</option>
             <option value="status-asc">Status</option>
             <option value="language-asc">Language</option>
@@ -205,6 +209,17 @@
             <span id="localOnlyCount" class="counter-pill">0</span>
           </div>
           <div id="localOnlyList" class="local-list"></div>
+        </section>
+
+        <section class="local-project-panel" aria-labelledby="localProjectHeading">
+          <div class="section-heading compact">
+            <div>
+              <p class="eyebrow">Skill / MCP / Hook / Agent</p>
+              <h3 id="localProjectHeading">Local context projects</h3>
+            </div>
+            <span id="localProjectCount" class="counter-pill">0</span>
+          </div>
+          <div id="localProjectList" class="context-project-list"></div>
         </section>
       </main>
     </div>

@@ -731,7 +731,7 @@ h3 {
 
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(6, minmax(112px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
   gap: 10px;
   margin-bottom: 18px;
 }
@@ -878,7 +878,8 @@ h3 {
 .matched-strip,
 .repo-panel,
 .detail-panel,
-.local-only-panel {
+.local-only-panel,
+.local-project-panel {
   background: color-mix(in srgb, var(--panel) 92%, transparent);
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -980,7 +981,8 @@ h3 {
 
 .repo-panel,
 .detail-panel,
-.local-only-panel {
+.local-only-panel,
+.local-project-panel {
   min-width: 0;
   padding: 16px;
 }
@@ -1114,8 +1116,21 @@ h3 {
   border-color: var(--line);
 }
 
+.badge.not-git {
+  color: var(--red);
+  background: var(--red-soft);
+  border-color: rgba(201, 56, 42, 0.24);
+}
+
+.badge.git-ready {
+  color: var(--green);
+  background: var(--green-soft);
+  border-color: rgba(35, 107, 63, 0.24);
+}
+
 .badge.category-skills,
-.badge.category-mcp {
+.badge.category-mcp,
+.badge.category-hook {
   color: var(--teal);
   background: var(--teal-soft);
   border-color: color-mix(in srgb, var(--teal) 26%, transparent);
@@ -1382,7 +1397,8 @@ h3 {
   white-space: nowrap;
 }
 
-.local-only-panel {
+.local-only-panel,
+.local-project-panel {
   margin-top: 18px;
 }
 
@@ -1405,6 +1421,65 @@ h3 {
 
 .local-title {
   font-weight: 800;
+}
+
+.context-project-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 10px;
+}
+
+.context-project-card {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--panel-soft) 86%, var(--teal) 14%), var(--panel-soft));
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.context-project-title {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+}
+
+.context-project-title strong,
+.context-project-title span,
+.context-project-foot span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.context-project-title strong {
+  font-size: 16px;
+}
+
+.context-project-title span,
+.context-project-foot {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.context-project-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.context-project-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
 }
 
 .toast {
@@ -1636,6 +1711,11 @@ h3 {
     grid-template-columns: minmax(0, 1fr);
     min-height: auto;
     padding: 12px 0;
+  }
+
+  .context-project-list,
+  .context-project-title {
+    grid-template-columns: 1fr;
   }
 
   .repo-row > span,

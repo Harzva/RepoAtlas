@@ -26,7 +26,7 @@
 
 ## Why RepoAtlas
 
-GitHub becomes a real context layer only when remote repositories, local folders, account boundaries, and project tags are visible in one place. RepoAtlas connects those layers so you can see what exists online, what is cloned locally, what has drifted, and which repositories belong to contexts such as Skills, MCP, Memory, Software, Docs, Infra, and Research.
+GitHub becomes a real context layer only when remote repositories, local folders, account boundaries, and project tags are visible in one place. RepoAtlas connects those layers so you can see what exists online, what is cloned locally, what has drifted, and which repositories belong to contexts such as Skills, MCP, Hook, Memory, Software, Docs, Infra, and Research.
 
 ## Highlights
 
@@ -34,7 +34,8 @@ GitHub becomes a real context layer only when remote repositories, local folders
 |---|---|
 | Multi-account inventory | Scan one or many GitHub accounts or account-router aliases in the same atlas. |
 | Local bridge | Match `github.com/owner/repo` remotes to local Git folders and open them from the app. |
-| Context tags | Automatically tag repositories as Skills, MCP, Memory, Software, Docs, Infra, Data, Research, Games, or Other. A repo can carry multiple tags. |
+| Context tags | Automatically tag repositories as Skills, MCP, Hook, Memory, Software, Docs, Infra, Data, Research, Games, or Other. A repo can carry multiple tags. |
+| Local context projects | Scan local Skill, MCP, Hook, and Agent-style folders and show whether each one is initialized as a Git repository. |
 | Drift signals | Show `synced`, `behind`, `ahead`, `diverged`, `dirty`, `no-upstream`, and `no-local-copy`. |
 | Themeable dashboard | Switch between Atlas, Midnight, Paper, and Aurora themes. |
 | Guided login | Check GitHub CLI status, launch browser login, or set a custom `gh.exe` path from the app. |
@@ -126,22 +127,25 @@ cargo build --release
 flowchart LR
   A["GitHub CLI accounts"] --> B["Remote repositories"]
   C["Scan roots"] --> D["Local Git repositories"]
+  C --> J["Local context projects"]
   D --> E["Remote URL normalization"]
   B --> F["Repository key map"]
   E --> F
   F --> G["Sync status + local paths"]
-  G --> H["Tag inference"]
+  J --> H["Git initialized? + context cards"]
+  G --> H
   H --> I["RepoAtlas dashboard + reports"]
 ```
 
 ## Context Tags
 
-RepoAtlas ships with automatic tag inference so a repository collection can become a usable context map. Repositories can carry multiple tags, so a RAG project can appear under both Memory and Research, while a connector can appear under MCP and Software.
+RepoAtlas ships with automatic tag inference so a repository collection can become a usable context map. Repositories can carry multiple tags, so a RAG project can appear under both Memory and Research, while a hook utility can appear under Hook and Software.
 
 | Tag | Typical signals |
 |---|---|
 | Skills | Codex skills, agent skills, local `.codex/skills` style projects. |
 | MCP | MCP servers, connectors, model-context-protocol tooling. |
+| Hook | Git hooks, pre-commit/pre-push automation, webhook tooling. |
 | Memory | Memory banks, knowledge systems, RAG, vector stores, notes. |
 | Software | Desktop apps, CLIs, tools, extensions, release utilities. |
 | Docs | Documentation, websites, roadmaps, course material. |

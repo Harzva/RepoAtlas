@@ -2,6 +2,7 @@ const state = {
   summary: {},
   rows: [],
   localOnly: [],
+  localProjects: [],
   repoDetails: {},
   repoDetailsLoading: {},
   lastAuthStatus: null,
@@ -12,7 +13,7 @@ const state = {
     category: "all",
     visibility: "all",
     fork: "all",
-    sort: "pushed-desc",
+    sort: "time-desc",
   },
   selectedId: "",
 };
@@ -20,6 +21,7 @@ const state = {
 const labels = {
   "no-local-copy": "Missing local",
   "no-upstream": "No upstream",
+  "not-git": "No Git",
   diverged: "Diverged",
   behind: "Behind",
   ahead: "Ahead",
@@ -31,6 +33,7 @@ const labels = {
 const categoryLabels = {
   skills: "Skills",
   mcp: "MCP",
+  hook: "Hook",
   memory: "Memory",
   software: "Software",
   docs: "Docs",
@@ -96,6 +99,8 @@ const elements = {
   detailPanel: document.querySelector("#detailPanel"),
   localOnlyCount: document.querySelector("#localOnlyCount"),
   localOnlyList: document.querySelector("#localOnlyList"),
+  localProjectCount: document.querySelector("#localProjectCount"),
+  localProjectList: document.querySelector("#localProjectList"),
   refreshButton: document.querySelector("#refreshButton"),
   guideButton: document.querySelector("#guideButton"),
   onboardingModal: document.querySelector("#onboardingModal"),
@@ -156,6 +161,16 @@ function formatDateShort(value) {
   const date = new Date(value);
   if (Number.isNaN(date.valueOf())) return value;
   return date.toLocaleDateString("en-US", { year: "numeric", month: "2-digit", day: "2-digit" });
+}
+
+function timeValue(value) {
+  if (!value) return 0;
+  const date = new Date(value);
+  return Number.isNaN(date.valueOf()) ? 0 : date.valueOf();
+}
+
+function repoActivityTime(repo) {
+  return Math.max(timeValue(repo.updatedAt), timeValue(repo.pushedAt));
 }
 
 function baseName(value) {
@@ -498,6 +513,7 @@ async function loadInventory() {
   state.summary = data.summary || {};
   state.rows = asArray(data.rows);
   state.localOnly = asArray(data.localOnly);
+  state.localProjects = asArray(data.localProjects);
   if (!state.selectedId) {
     const firstLocal = state.rows.find((repo) => repo.localMatchCount > 0);
     state.selectedId = (firstLocal || state.rows[0] || {}).id || "";
@@ -516,7 +532,7 @@ async function loadInventory() {
 
 function shouldAutoRefresh() {
   if (window.sessionStorage.getItem("repo-atlas-auto-refresh")) return false;
-  const hasRows = state.rows.length > 0 || state.localOnly.length > 0;
+  const hasRows = state.rows.length > 0 || state.localOnly.length > 0 || state.localProjects.length > 0;
   const hasCounts = (state.summary.remoteCount || 0) > 0 || (state.summary.localRepoCount || 0) > 0;
   return !hasRows && !hasCounts && !state.summary.generatedAt;
 }
@@ -531,6 +547,7 @@ function render() {
   renderRepoTable();
   renderDetails();
   renderLocalOnly();
+  renderLocalProjects();
 }
 
 function renderAccountChips() {
@@ -557,6 +574,8 @@ function renderMetrics() {
     ["Accounts", accountCount],
     ["Tags", categoryCount],
     ["Local Git", state.summary.localRepoCount],
+    ["Local projects", state.summary.localProjectCount],
+    ["No Git projects", state.summary.localProjectNoGitCount],
     ["Matched", state.summary.matchedRemoteCount],
     ["Missing", missingCount],
   ];
@@ -645,9 +664,12 @@ function filteredRows() {
   });
 
   return rows.sort((a, b) => {
+    if (state.filters.sort === "time-desc") return repoActivityTime(b) - repoActivityTime(a) || a.name.localeCompare(b.name);
+    if (state.filters.sort === "time-asc") return repoActivityTime(a) - repoActivityTime(b) || a.name.localeCompare(b.name);
     if (state.filters.sort === "name-asc") return a.name.localeCompare(b.name);
     if (state.filters.sort === "status-asc") return a.localStatus.localeCompare(b.localStatus) || a.name.localeCompare(b.name);
     if (state.filters.sort === "language-asc") return (a.language || "zz").localeCompare(b.language || "zz") || a.name.localeCompare(b.name);
+    if (state.filters.sort === "pushed-asc") return String(a.pushedAt || "").localeCompare(String(b.pushedAt || "")) || a.name.localeCompare(b.name);
     return String(b.pushedAt || "").localeCompare(String(a.pushedAt || ""));
   });
 }
@@ -948,6 +970,61 @@ function renderLocalOnly() {
     .join("");
 }
 
+function filteredLocalProjects() {
+  const query = state.filters.search.trim().toLowerCase();
+  return state.localProjects
+    .filter((project) => {
+      const remoteKeys = asArray(project.remoteKeys).join(" ");
+      const searchable = [project.name, project.path, remoteKeys, categoryText(project), asArray(project.contextKinds).join(" ")]
+        .join(" ")
+        .toLowerCase();
+      if (query && !searchable.includes(query)) return false;
+      if (state.filters.category !== "all" && !hasCategory(project, state.filters.category)) return false;
+      return true;
+    })
+    .sort((a, b) => timeValue(b.modifiedAt) - timeValue(a.modifiedAt) || String(a.name || "").localeCompare(String(b.name || "")));
+}
+
+function renderLocalProjects() {
+  const projects = filteredLocalProjects();
+  elements.localProjectCount.textContent = formatNumber(projects.length);
+  if (!projects.length) {
+    elements.localProjectList.innerHTML = '<div class="empty-line">No local context projects match the current filters.</div>';
+    return;
+  }
+
+  elements.localProjectList.innerHTML = projects
+    .map((project) => {
+      const remoteKeys = asArray(project.remoteKeys).filter(Boolean);
+      const kinds = asArray(project.contextKinds).filter(Boolean).join(" / ");
+      const gitBadge = project.isGitRepo
+        ? `<span class="badge git-ready">Git repo</span>${project.dirty ? statusBadge("dirty") : statusBadge(project.gitStatus || "unknown")}`
+        : statusBadge("not-git");
+      return `
+        <article class="context-project-card">
+          <div class="context-project-title">
+            <div>
+              <strong>${escapeHtml(project.name || baseName(project.path))}</strong>
+              <span>${escapeHtml(project.path)}</span>
+            </div>
+            <button class="icon-button" type="button" data-open-path="${escapeHtml(project.path)}" title="Open local project" aria-label="Open local project">${icons.folder}</button>
+          </div>
+          <div class="context-project-meta">
+            ${categoryBadges(project)}
+            <span class="badge">${escapeHtml(kinds || "Context")}</span>
+            ${gitBadge}
+            ${project.branch ? `<span class="badge">${escapeHtml(project.branch)}</span>` : ""}
+          </div>
+          <div class="context-project-foot">
+            <span>${escapeHtml(remoteKeys.length ? remoteKeys.join(", ") : "No GitHub remote linked")}</span>
+            <span>${escapeHtml(formatDateShort(project.modifiedAt) || "no modified time")}</span>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+}
+
 async function openLocalPath(localPath) {
   const response = await fetch("/api/open-local", {
     method: "POST",
@@ -994,6 +1071,7 @@ applyTheme(window.localStorage.getItem("repo-atlas-theme") || "atlas");
 elements.searchInput.addEventListener("input", (event) => {
   state.filters.search = event.target.value;
   renderRepoTable();
+  renderLocalProjects();
 });
 
 elements.statusFilters.addEventListener("click", (event) => {
@@ -1010,6 +1088,7 @@ elements.categoryFilters.addEventListener("click", (event) => {
   state.filters.category = button.dataset.category;
   setActiveButton(elements.categoryFilters, "category", state.filters.category);
   renderRepoTable();
+  renderLocalProjects();
 });
 
 elements.visibilityFilters.addEventListener("click", (event) => {
@@ -1031,6 +1110,7 @@ elements.forkFilters.addEventListener("click", (event) => {
 elements.sortSelect.addEventListener("change", (event) => {
   state.filters.sort = event.target.value;
   renderRepoTable();
+  renderLocalProjects();
 });
 
 elements.themeButtons.addEventListener("click", (event) => {
@@ -1075,6 +1155,7 @@ async function refreshInventory({ automatic = false } = {}) {
     state.summary = data.summary || {};
     state.rows = asArray(data.rows);
     state.localOnly = asArray(data.localOnly);
+    state.localProjects = asArray(data.localProjects);
     const accountErrors = asArray(state.summary.accountErrors);
     if (accountErrors.length) {
       showError(accountErrors.map((item) => `${item.alias || "account"}: ${item.error}`).join(" | "));
@@ -1084,7 +1165,10 @@ async function refreshInventory({ automatic = false } = {}) {
       state.selectedId = (firstLocal || state.rows[0] || {}).id || "";
     }
     render();
-    completeOperation("Scan complete", `${formatNumber(state.rows.length)} repositories loaded`);
+    completeOperation(
+      "Scan complete",
+      `${formatNumber(state.rows.length)} repositories and ${formatNumber(state.localProjects.length)} local context projects loaded`,
+    );
   } catch (error) {
     showError(error.message);
     failOperation("Scan failed", error.message);

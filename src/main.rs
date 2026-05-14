@@ -227,7 +227,7 @@ fn flatten_inventory_result(path: &Path) -> Value {
     match read_inventory(path).map(|inventory| flatten_inventory(&inventory)) {
         Ok(value) => value,
         Err(error) => {
-            json!({ "ok": false, "error": error.to_string(), "summary": {}, "rows": [], "localOnly": [] })
+            json!({ "ok": false, "error": error.to_string(), "summary": {}, "rows": [], "localOnly": [], "localProjects": [] })
         }
     }
 }
@@ -1013,6 +1013,11 @@ fn flatten_inventory(inventory: &Value) -> Value {
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
+    let local_projects_in = inventory
+        .get("localProjects")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
     let mut rows = Vec::new();
     let mut status_counts = BTreeMap::<String, u64>::new();
     let mut language_counts = BTreeMap::<String, u64>::new();
@@ -1204,6 +1209,54 @@ fn flatten_inventory(inventory: &Value) -> Value {
         })
         .collect::<Vec<_>>();
 
+    let local_projects = local_projects_in
+        .iter()
+        .enumerate()
+        .map(|(index, project)| {
+            let path = project.get("path").and_then(Value::as_str).unwrap_or("");
+            let categories = project
+                .get("categories")
+                .and_then(Value::as_array)
+                .map(|items| {
+                    items
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .map(str::to_string)
+                        .collect::<Vec<_>>()
+                })
+                .filter(|items| !items.is_empty())
+                .unwrap_or_else(|| classify_repo_categories(
+                    project.get("name").and_then(Value::as_str).unwrap_or(""),
+                    "",
+                    &[path.to_string()],
+                ));
+            let category = primary_category(&categories);
+            let primary_label = category_label(&category);
+            let category_labels = categories
+                .iter()
+                .map(|category| Value::from(category_label(category)))
+                .collect::<Vec<_>>();
+            json!({
+                "id": project.get("id").and_then(Value::as_str).map(str::to_string).unwrap_or_else(|| format!("local-project-{index}")),
+                "name": project.get("name").and_then(Value::as_str).unwrap_or(""),
+                "path": path,
+                "category": category,
+                "categoryLabel": primary_label,
+                "categories": categories,
+                "categoryLabels": category_labels,
+                "contextKinds": project.get("contextKinds").cloned().unwrap_or_else(|| json!([])),
+                "isGitRepo": project.get("isGitRepo").and_then(Value::as_bool).unwrap_or(false),
+                "gitStatus": project.get("gitStatus").and_then(Value::as_str).unwrap_or("not-git"),
+                "branch": project.get("branch").and_then(Value::as_str).unwrap_or(""),
+                "dirty": project.get("dirty").and_then(Value::as_bool).unwrap_or(false),
+                "remotes": project.get("remotes").cloned().unwrap_or_else(|| json!([])),
+                "remoteKeys": project.get("remoteKeys").cloned().unwrap_or_else(|| json!([])),
+                "modifiedAt": project.get("modifiedAt").and_then(Value::as_str).unwrap_or(""),
+                "raw": project,
+            })
+        })
+        .collect::<Vec<_>>();
+
     json!({
         "summary": {
             "generatedAt": inventory.get("generatedAt").and_then(Value::as_str).unwrap_or(""),
@@ -1211,6 +1264,9 @@ fn flatten_inventory(inventory: &Value) -> Value {
             "localRepoCount": inventory.get("localRepoCount").and_then(Value::as_u64).unwrap_or(0),
             "matchedRemoteCount": inventory.get("matchedRemoteCount").and_then(Value::as_u64).unwrap_or_else(|| rows.iter().filter(|row| row.get("localMatchCount").and_then(Value::as_u64).unwrap_or(0) > 0).count() as u64),
             "localOnlyCount": local_only.len(),
+            "localProjectCount": local_projects.len(),
+            "localProjectGitCount": local_projects.iter().filter(|project| project.get("isGitRepo").and_then(Value::as_bool).unwrap_or(false)).count(),
+            "localProjectNoGitCount": local_projects.iter().filter(|project| !project.get("isGitRepo").and_then(Value::as_bool).unwrap_or(false)).count(),
             "localMatchCount": local_match_count,
             "publicCount": public_count,
             "privateCount": private_count,
@@ -1228,6 +1284,7 @@ fn flatten_inventory(inventory: &Value) -> Value {
         },
         "rows": rows,
         "localOnly": local_only,
+        "localProjects": local_projects,
     })
 }
 
@@ -1308,6 +1365,21 @@ fn classify_repo_categories(name: &str, description: &str, local_paths: &[String
         ],
     ) {
         categories.push("mcp".to_string());
+    }
+    if contains_any(
+        &haystack,
+        &[
+            "hook",
+            "hooks",
+            "githook",
+            "git-hook",
+            "pre-commit",
+            "post-commit",
+            "pre-push",
+            "webhook",
+        ],
+    ) {
+        categories.push("hook".to_string());
     }
     if contains_any(
         &name_paths,
@@ -1432,6 +1504,7 @@ fn category_label(category: &str) -> &'static str {
     match category {
         "skills" => "Skills",
         "mcp" => "MCP",
+        "hook" => "Hook",
         "memory" => "Memory",
         "software" => "Software",
         "docs" => "Docs",
@@ -1463,6 +1536,13 @@ fn allowed_local_paths(inventory: &Value) -> BTreeSet<String> {
     if let Some(locals) = inventory.get("localOnly").and_then(Value::as_array) {
         for local in locals {
             if let Some(path) = local.get("path").and_then(Value::as_str) {
+                allowed.insert(normalize_path_key(Path::new(path)));
+            }
+        }
+    }
+    if let Some(projects) = inventory.get("localProjects").and_then(Value::as_array) {
+        for project in projects {
+            if let Some(path) = project.get("path").and_then(Value::as_str) {
                 allowed.insert(normalize_path_key(Path::new(path)));
             }
         }
@@ -1507,6 +1587,7 @@ fn default_scan_roots() -> Vec<PathBuf> {
     for candidate in [
         PathBuf::from(r"D:\study\code"),
         PathBuf::from(r"D:\study\code\0ai\产品"),
+        PathBuf::from(r"D:\study\code\0ai\产品\output\项目目录"),
     ] {
         if candidate.exists() {
             roots.insert(candidate);
@@ -1608,7 +1689,8 @@ fn scan_inventory(
         .iter()
         .map(|path| inspect_local_repo(path, fetch))
         .collect::<Vec<_>>();
-    let mut inventory = merge_inventory(remote_repos, local_repos);
+    let local_projects = find_context_projects(scan_roots, max_depth, &local_repos);
+    let mut inventory = merge_inventory(remote_repos, local_repos, local_projects);
     let account_aliases = account_summaries
         .iter()
         .filter_map(|item| item.get("alias").and_then(Value::as_str))
@@ -1882,12 +1964,167 @@ fn find_git_roots(scan_roots: &[PathBuf], max_depth: usize) -> Vec<PathBuf> {
     repos.into_iter().collect()
 }
 
+fn find_context_projects(
+    scan_roots: &[PathBuf],
+    max_depth: usize,
+    local_repos: &[Value],
+) -> Vec<Value> {
+    let mut local_by_path = BTreeMap::<String, Value>::new();
+    for local in local_repos {
+        if let Some(path) = local.get("path").and_then(Value::as_str) {
+            local_by_path.insert(normalize_path_key(Path::new(path)), local.clone());
+        }
+    }
+
+    let mut projects = BTreeMap::<String, Value>::new();
+    for root in scan_roots.iter().filter(|root| root.exists()) {
+        let walker = WalkDir::new(root)
+            .max_depth(max_depth)
+            .into_iter()
+            .filter_entry(|entry| !should_skip_entry(entry));
+        for entry in walker.flatten().filter(|entry| entry.file_type().is_dir()) {
+            let path = entry.path();
+            let signals = local_context_signals(path);
+            if signals.categories.is_empty() {
+                continue;
+            }
+            let key = normalize_path_key(path);
+            if projects.contains_key(&key) {
+                continue;
+            }
+            let local_git = local_by_path.get(&key);
+            let is_git_repo = local_git.is_some();
+            let remotes = local_git
+                .and_then(|local| local.get("remotes"))
+                .cloned()
+                .unwrap_or_else(|| json!([]));
+            let remote_keys = remotes
+                .as_array()
+                .map(|items| {
+                    Value::Array(
+                        items
+                            .iter()
+                            .filter_map(|remote| remote.get("repoKey").and_then(Value::as_str))
+                            .map(Value::from)
+                            .collect(),
+                    )
+                })
+                .unwrap_or_else(|| json!([]));
+
+            projects.insert(
+                key.clone(),
+                json!({
+                    "id": format!("local-project-{key}"),
+                    "name": path.file_name().and_then(|value| value.to_str()).unwrap_or("local-project"),
+                    "path": path.to_string_lossy().to_string(),
+                    "categories": signals.categories,
+                    "contextKinds": signals.kinds,
+                    "isGitRepo": is_git_repo,
+                    "gitStatus": if is_git_repo { local_git.and_then(|local| local.get("status").and_then(Value::as_str)).unwrap_or("unknown") } else { "not-git" },
+                    "branch": local_git.and_then(|local| local.get("branch").and_then(Value::as_str)).unwrap_or(""),
+                    "dirty": local_git.and_then(|local| local.get("dirty").and_then(Value::as_bool)).unwrap_or(false),
+                    "remotes": remotes,
+                    "remoteKeys": remote_keys,
+                    "modifiedAt": path_modified_at(path),
+                }),
+            );
+        }
+    }
+    projects.into_values().collect()
+}
+
+struct LocalContextSignals {
+    categories: Vec<String>,
+    kinds: Vec<Value>,
+}
+
+fn local_context_signals(path: &Path) -> LocalContextSignals {
+    let file_name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    let path_text = path.to_string_lossy().to_ascii_lowercase();
+    let mut categories = Vec::new();
+    let mut kinds = Vec::new();
+
+    let has_skill_marker = path.join("SKILL.md").is_file()
+        || path.join("skill.json").is_file()
+        || path.join(".codex").join("skills").exists()
+        || contains_any(&path_text, &[".codex/skills", ".codex\\skills"])
+        || contains_any(&file_name, &["codex-skill", "agent-skill"])
+        || file_name.contains("skill");
+    if has_skill_marker {
+        categories.push("skills".to_string());
+        kinds.push(Value::from("Skill"));
+    }
+
+    let has_mcp_marker = path.join("mcp.json").is_file()
+        || path.join(".mcp.json").is_file()
+        || contains_any(
+            &file_name,
+            &["mcp-server", "model-context-protocol", "context-mcp"],
+        )
+        || file_name.contains("mcp");
+    if has_mcp_marker {
+        categories.push("mcp".to_string());
+        kinds.push(Value::from("MCP"));
+    }
+
+    let has_hook_marker = path.join(".githooks").exists()
+        || path.join("hooks").exists()
+        || path.join(".pre-commit-config.yaml").is_file()
+        || contains_any(
+            &file_name,
+            &["git-hook", "githook", "pre-commit", "pre-push", "webhook"],
+        )
+        || file_name.contains("hook");
+    if has_hook_marker {
+        categories.push("hook".to_string());
+        kinds.push(Value::from("Hook"));
+    }
+
+    let has_agent_marker = path.join("AGENTS.md").is_file()
+        || path.join(".agents").exists()
+        || path.join("agents").exists()
+        || contains_any(&file_name, &["agent-"])
+        || file_name.contains("agent");
+    if has_agent_marker {
+        categories.push("research".to_string());
+        kinds.push(Value::from("Agent"));
+    }
+
+    LocalContextSignals {
+        categories: unique_owned_strings(categories),
+        kinds: unique_values(kinds),
+    }
+}
+
+fn unique_values(values: Vec<Value>) -> Vec<Value> {
+    let mut seen = BTreeSet::new();
+    values
+        .into_iter()
+        .filter(|value| seen.insert(value.to_string()))
+        .collect()
+}
+
+fn path_modified_at(path: &Path) -> String {
+    let Ok(metadata) = fs::metadata(path) else {
+        return String::new();
+    };
+    let Ok(modified) = metadata.modified() else {
+        return String::new();
+    };
+    let datetime: chrono::DateTime<chrono::Utc> = modified.into();
+    datetime.to_rfc3339()
+}
+
 fn should_skip_entry(entry: &DirEntry) -> bool {
     if entry.depth() == 0 {
         return false;
     }
     let name = entry.file_name().to_string_lossy();
-    !matches!(
+    matches!(
         name.as_ref(),
         ".git"
             | ".hg"
@@ -1902,7 +2139,7 @@ fn should_skip_entry(entry: &DirEntry) -> bool {
             | "build"
             | "target"
             | ".cache"
-    ) && !name.starts_with(".cache")
+    ) || name.starts_with(".cache")
 }
 
 fn inspect_local_repo(repo_path: &Path, fetch: bool) -> Value {
@@ -2154,7 +2391,11 @@ fn configure_no_window(command: &mut Command) {
 #[cfg(not(windows))]
 fn configure_no_window(_command: &mut Command) {}
 
-fn merge_inventory(remote_repos: Vec<Value>, local_repos: Vec<Value>) -> Value {
+fn merge_inventory(
+    remote_repos: Vec<Value>,
+    local_repos: Vec<Value>,
+    local_projects: Vec<Value>,
+) -> Value {
     let mut locals_by_key: BTreeMap<String, Vec<Value>> = BTreeMap::new();
     for local in &local_repos {
         if let Some(remotes) = local.get("remotes").and_then(Value::as_array) {
@@ -2220,6 +2461,7 @@ fn merge_inventory(remote_repos: Vec<Value>, local_repos: Vec<Value>) -> Value {
         "matchedRemoteCount": matched,
         "rows": rows,
         "localOnly": local_only,
+        "localProjects": local_projects,
     })
 }
 
@@ -2366,6 +2608,13 @@ fn render_markdown(inventory: &Value) -> String {
         format!(
             "Total remote repositories: {}",
             summary.get("remoteCount").and_then(Value::as_u64).unwrap_or(0)
+        ),
+        format!(
+            "Local context projects: {}",
+            summary
+                .get("localProjectCount")
+                .and_then(Value::as_u64)
+                .unwrap_or(0)
         ),
         "".into(),
         "| Repository | Account | Tags | Visibility | Fork | Language | Default branch | Local status | Last pushed | Description |".into(),
@@ -2535,6 +2784,10 @@ mod tests {
             classify_repo("owner/memory-bank", "RAG knowledge store", &[]),
             "memory"
         );
+        assert_eq!(
+            classify_repo("owner/action-hooks", "Reusable git hook automation", &[]),
+            "hook"
+        );
     }
 
     #[test]
@@ -2555,6 +2808,62 @@ mod tests {
         );
         assert!(mcp_memory.contains(&"mcp".to_string()));
         assert!(mcp_memory.contains(&"memory".to_string()));
+    }
+
+    #[test]
+    fn find_git_roots_walks_normal_project_dirs() {
+        let root = temp_test_dir("git-roots");
+        let repo = root.join("normal-repo");
+        fs::create_dir_all(&repo).expect("create repo dir");
+        let init = run("git", &["init"], Some(&repo));
+        assert!(
+            init.status.success(),
+            "git init failed: {}",
+            process_message(&init)
+        );
+
+        let found = find_git_roots(&[root.clone()], 4);
+        let repo_key = normalize_path_key(&repo);
+        assert!(
+            found
+                .iter()
+                .any(|path| normalize_path_key(path) == repo_key),
+            "normal project directory should be scanned"
+        );
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn context_projects_include_non_git_hooks() {
+        let root = temp_test_dir("context-projects");
+        let hook_project = root.join("custom-hook-pack");
+        fs::create_dir_all(hook_project.join("hooks")).expect("create hook project");
+
+        let projects = find_context_projects(&[root.clone()], 4, &[]);
+        let project = projects
+            .iter()
+            .find(|item| {
+                item.get("path")
+                    .and_then(Value::as_str)
+                    .map(|path| {
+                        normalize_path_key(Path::new(path)) == normalize_path_key(&hook_project)
+                    })
+                    .unwrap_or(false)
+            })
+            .expect("hook context project");
+        assert!(!project
+            .get("isGitRepo")
+            .and_then(Value::as_bool)
+            .unwrap_or(true));
+        assert!(project
+            .get("categories")
+            .and_then(Value::as_array)
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("hook")));
+
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]
@@ -2644,5 +2953,16 @@ mod tests {
             Some(1)
         );
         assert_eq!(rows[1].get("category").and_then(Value::as_str), Some("mcp"));
+    }
+
+    fn temp_test_dir(name: &str) -> PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or(0);
+        let dir = env::temp_dir().join(format!("repo-atlas-{name}-{}-{nanos}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).expect("create temp dir");
+        dir
     }
 }

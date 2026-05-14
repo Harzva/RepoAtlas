@@ -1,21 +1,21 @@
-# RepoAtlas v0.5.0
+# RepoAtlas v0.5.1
 
-Login+ and GitHub live details release.
+Local context scan and Hook category release.
 
 ## Highlights
 
-- Added a `Login+` account panel for adding scan accounts or router aliases.
-- Added browser login from `Login+`, with a force option for adding another GitHub CLI account.
-- Added one-time token access login through GitHub CLI. RepoAtlas passes the token to `gh auth login --with-token` and does not store it.
-- Added known GitHub CLI account display from `gh auth status --json hosts`.
-- Added lazy-loaded repository details for Issues, Pull Requests, Releases, GitHub Pages, Deployments, and Packages.
-- Added GitHub links for opening Issues, PRs, Releases, Pages settings, Deployments, Packages, and new release creation in the browser.
-- Added a GitHub Pages roadmap section for a future Codex plugin UI and a static waitlist form.
+- Fixed a local scanner regression that could skip normal project folders and report `Local Git 0`.
+- Added the `Hook` tag for hook, githook, pre-commit, pre-push, and webhook repositories.
+- Added local context project discovery for Skill, MCP, Hook, and Agent-style folders under scan roots.
+- Added local context project cards showing whether each folder is an initialized Git repository.
+- Kept existing remote-to-local version drift checks for projects linked to GitHub remotes.
+- Added activity-time sorting options: newest activity, oldest activity, last pushed, and oldest pushed.
 
 ## Compatibility
 
-RepoAtlas still delegates authentication and credential storage to GitHub CLI. GitHub management actions continue to open in the browser; this release only reads and links GitHub metadata.
+RepoAtlas still delegates GitHub access to GitHub CLI. Local context project cards are read-only and use the same safe folder-opening allowlist as matched repositories.
 
 ## Regression guard
 
 - CI runs formatting, `cargo check --locked`, `cargo test --locked`, and `node --check public/app.js`.
+- New tests cover normal directory walking, non-Git hook project detection, and Hook tag classification.
