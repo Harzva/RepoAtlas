@@ -1642,7 +1642,7 @@ fn order_context_categories(categories: Vec<String>) -> Vec<String> {
         "agents", "memory", "skills", "mcp", "workflow", "rules", "hook", "other",
     ]
     .iter()
-    .filter(|category| values.contains(*category))
+    .filter(|category| values.iter().any(|value| value == *category))
     .map(|category| (*category).to_string())
     .collect::<Vec<_>>();
     for category in values {
