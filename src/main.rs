@@ -10,7 +10,7 @@ use std::{
     net::{TcpListener, TcpStream},
     path::{Path, PathBuf},
     process::{Command, Stdio},
-    sync::Arc,
+    sync::{Arc, OnceLock},
     thread,
     time::{Duration, Instant},
 };
@@ -28,6 +28,7 @@ static SEED_INVENTORY: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/data/seed-inventory.json"
 ));
+static GIT_COMMAND: OnceLock<PathBuf> = OnceLock::new();
 
 const APP_NAME: &str = "RepoAtlas";
 const INVENTORY_FILE_NAME: &str = "inventory.json";
@@ -2169,9 +2170,10 @@ fn find_git_roots(scan_roots: &[PathBuf], max_depth: usize) -> Vec<PathBuf> {
             .filter_entry(|entry| !should_skip_entry(entry));
         for entry in walker.flatten().filter(|entry| entry.file_type().is_dir()) {
             if entry.path().join(".git").exists() {
-                if let Some(top) = git_output(entry.path(), &["rev-parse", "--show-toplevel"]) {
-                    repos.insert(PathBuf::from(top));
-                }
+                let top = git_output(entry.path(), &["rev-parse", "--show-toplevel"])
+                    .map(PathBuf::from)
+                    .unwrap_or_else(|| entry.path().to_path_buf());
+                repos.insert(top);
             }
         }
     }
@@ -2525,11 +2527,7 @@ fn inspect_local_repo(repo_path: &Path, fetch: bool) -> Value {
     let mut error = Value::Null;
 
     if fetch {
-        let _ = run(
-            "git",
-            &["fetch", "--all", "--prune", "--quiet"],
-            Some(repo_path),
-        );
+        let _ = run_git(&["fetch", "--all", "--prune", "--quiet"], Some(repo_path));
     }
 
     let branch = git_output(repo_path, &["branch", "--show-current"]);
@@ -2593,29 +2591,95 @@ fn inspect_local_repo(repo_path: &Path, fetch: bool) -> Value {
 fn parse_remotes(repo_path: &Path) -> Vec<Value> {
     let mut seen = BTreeSet::new();
     let mut remotes = Vec::new();
-    let Some(text) = git_output(repo_path, &["remote", "-v"]) else {
-        return remotes;
-    };
+    if let Some(text) = git_output(repo_path, &["remote", "-v"]) {
+        parse_git_remote_output(&text, &mut seen, &mut remotes);
+    }
+    if remotes.is_empty() {
+        parse_git_config_remotes(repo_path, &mut seen, &mut remotes);
+    }
+    remotes
+}
+
+fn parse_git_remote_output(text: &str, seen: &mut BTreeSet<String>, remotes: &mut Vec<Value>) {
     for line in text.lines().filter(|line| line.contains("(fetch)")) {
         let parts = line.split_whitespace().collect::<Vec<_>>();
         if parts.len() < 2 {
             continue;
         }
-        let key = format!("{} {}", parts[0], parts[1]);
-        if !seen.insert(key) {
+        push_remote(remotes, seen, parts[0], parts[1]);
+    }
+}
+
+fn parse_git_config_remotes(
+    repo_path: &Path,
+    seen: &mut BTreeSet<String>,
+    remotes: &mut Vec<Value>,
+) {
+    let Some(git_dir) = git_metadata_dir(repo_path) else {
+        return;
+    };
+    let Ok(text) = fs::read_to_string(git_dir.join("config")) else {
+        return;
+    };
+    let mut current_remote = None::<String>;
+    for raw_line in text.lines() {
+        let line = raw_line.trim();
+        if line.starts_with('[') && line.ends_with(']') {
+            current_remote = parse_remote_section(line);
             continue;
         }
-        remotes.push(json!({
-            "name": parts[0],
-            "url": parts[1],
-            "repoKey": normalize_repo_key(parts[1]),
-        }));
+        let Some(remote_name) = current_remote.as_deref() else {
+            continue;
+        };
+        let Some((key, value)) = line.split_once('=') else {
+            continue;
+        };
+        if key.trim().eq_ignore_ascii_case("url") {
+            push_remote(remotes, seen, remote_name, value.trim());
+        }
     }
-    remotes
+}
+
+fn parse_remote_section(line: &str) -> Option<String> {
+    let remote = line.strip_prefix("[remote ")?.strip_suffix(']')?.trim();
+    Some(remote.strip_prefix('"')?.strip_suffix('"')?.to_string())
+}
+
+fn push_remote(remotes: &mut Vec<Value>, seen: &mut BTreeSet<String>, name: &str, url: &str) {
+    let key = format!("{name} {url}");
+    if !seen.insert(key) {
+        return;
+    }
+    remotes.push(json!({
+        "name": name,
+        "url": url,
+        "repoKey": normalize_repo_key(url),
+    }));
+}
+
+fn git_metadata_dir(repo_path: &Path) -> Option<PathBuf> {
+    let dot_git = repo_path.join(".git");
+    if dot_git.is_dir() {
+        return Some(dot_git);
+    }
+    if !dot_git.is_file() {
+        return None;
+    }
+    let text = fs::read_to_string(dot_git).ok()?;
+    let gitdir = text
+        .lines()
+        .find_map(|line| line.trim().strip_prefix("gitdir:"))?
+        .trim();
+    let path = PathBuf::from(gitdir);
+    if path.is_absolute() {
+        Some(path)
+    } else {
+        Some(repo_path.join(path))
+    }
 }
 
 fn git_output(repo_path: &Path, args: &[&str]) -> Option<String> {
-    let output = run("git", args, Some(repo_path));
+    let output = run_git(args, Some(repo_path));
     if !output.status.success() {
         return None;
     }
@@ -2627,7 +2691,70 @@ fn git_output(repo_path: &Path, args: &[&str]) -> Option<String> {
     }
 }
 
+fn run_git(args: &[&str], cwd: Option<&Path>) -> ProcOutput {
+    let command = git_command();
+    run_path(&command, args, cwd)
+}
+
+fn git_command() -> PathBuf {
+    GIT_COMMAND.get_or_init(resolve_git_command).clone()
+}
+
+fn resolve_git_command() -> PathBuf {
+    if let Some(path) = env::var_os("REPO_ATLAS_GIT").map(PathBuf::from) {
+        if command_works(&path, &["--version"]) {
+            return path;
+        }
+    }
+    for candidate in git_command_candidates() {
+        if command_works(&candidate, &["--version"]) {
+            return candidate;
+        }
+    }
+    PathBuf::from("git")
+}
+
+fn git_command_candidates() -> Vec<PathBuf> {
+    let mut candidates = vec![PathBuf::from("git")];
+    if cfg!(windows) {
+        for env_name in ["ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA"] {
+            if let Some(base) = env::var_os(env_name).map(PathBuf::from) {
+                candidates.push(base.join("Git").join("cmd").join("git.exe"));
+                candidates.push(base.join("Git").join("bin").join("git.exe"));
+                candidates.push(
+                    base.join("Programs")
+                        .join("Git")
+                        .join("cmd")
+                        .join("git.exe"),
+                );
+            }
+        }
+        candidates.push(PathBuf::from(r"C:\Program Files\Git\cmd\git.exe"));
+        candidates.push(PathBuf::from(r"C:\Program Files\Git\bin\git.exe"));
+        candidates.push(PathBuf::from(r"C:\Program Files (x86)\Git\cmd\git.exe"));
+    }
+
+    let mut seen = BTreeSet::new();
+    candidates
+        .into_iter()
+        .filter(|path| seen.insert(normalize_path_key(path)))
+        .collect()
+}
+
+fn command_works(command: &Path, args: &[&str]) -> bool {
+    let mut cmd = Command::new(command);
+    cmd.args(args).stdout(Stdio::piped()).stderr(Stdio::piped());
+    configure_command(&mut cmd);
+    cmd.output()
+        .map(|output| output.status.success())
+        .unwrap_or(false)
+}
+
 fn run(command: &str, args: &[&str], cwd: Option<&Path>) -> ProcOutput {
+    run_path(Path::new(command), args, cwd)
+}
+
+fn run_path(command: &Path, args: &[&str], cwd: Option<&Path>) -> ProcOutput {
     let mut cmd = Command::new(command);
     cmd.args(args).stdout(Stdio::piped()).stderr(Stdio::piped());
     if let Some(cwd) = cwd {
@@ -3221,6 +3348,49 @@ mod tests {
                 .any(|path| normalize_path_key(path) == repo_key),
             "normal project directory should be scanned"
         );
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn find_git_roots_keeps_dot_git_dirs_when_git_command_fails() {
+        let root = temp_test_dir("git-roots-fallback");
+        let repo = root.join("manual-repo");
+        fs::create_dir_all(repo.join(".git")).expect("create fake git dir");
+
+        let found = find_git_roots(&[root.clone()], 4);
+        let repo_key = normalize_path_key(&repo);
+        assert!(
+            found
+                .iter()
+                .any(|path| normalize_path_key(path) == repo_key),
+            "a .git marker should keep the local repo candidate even when git rev-parse fails"
+        );
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn parse_remotes_falls_back_to_git_config() {
+        let root = temp_test_dir("git-config-remotes");
+        let repo = root.join("config-only-repo");
+        fs::create_dir_all(repo.join(".git")).expect("create git dir");
+        fs::write(
+            repo.join(".git").join("config"),
+            r#"
+[core]
+    repositoryformatversion = 0
+[remote "origin"]
+    url = https://github.com/Harzva/RepoAtlas.git
+    fetch = +refs/heads/*:refs/remotes/origin/*
+"#,
+        )
+        .expect("write git config");
+
+        let remotes = parse_remotes(&repo);
+        assert!(remotes.iter().any(|remote| {
+            remote.get("repoKey").and_then(Value::as_str) == Some("harzva/repoatlas")
+        }));
 
         let _ = fs::remove_dir_all(root);
     }
