@@ -20,7 +20,7 @@
 
         <label class="search-box">
           <span>Search</span>
-          <input id="searchInput" type="search" placeholder="Repository, language, path" autocomplete="off" />
+          <input id="searchInput" type="search" placeholder="Repository, context, path" autocomplete="off" />
         </label>
 
         <label class="account-box">
@@ -59,20 +59,17 @@
           </div>
         </section>
 
-        <section class="control-group" aria-label="Tag filter">
-          <p class="control-title">Tags</p>
+        <section class="control-group" aria-label="Context tab filter">
+          <p class="control-title">Context Tabs</p>
           <div id="categoryFilters" class="segmented category-grid">
             <button class="active" type="button" data-category="all">All</button>
+            <button type="button" data-category="agents">Agents</button>
+            <button type="button" data-category="memory">Memory</button>
             <button type="button" data-category="skills">Skills</button>
             <button type="button" data-category="mcp">MCP</button>
-            <button type="button" data-category="hook">Hook</button>
-            <button type="button" data-category="memory">Memory</button>
-            <button type="button" data-category="software">Software</button>
-            <button type="button" data-category="docs">Docs</button>
-            <button type="button" data-category="infra">Infra</button>
-            <button type="button" data-category="research">Research</button>
-            <button type="button" data-category="data">Data</button>
-            <button type="button" data-category="games">Games</button>
+            <button type="button" data-category="workflow">Workflow</button>
+            <button type="button" data-category="rules">Rules</button>
+            <button type="button" data-category="hook">Hooks</button>
             <button type="button" data-category="other">Other</button>
           </div>
         </section>
@@ -214,8 +211,8 @@
         <section class="local-project-panel" aria-labelledby="localProjectHeading">
           <div class="section-heading compact">
             <div>
-              <p class="eyebrow">Skill / MCP / Hook / Agent</p>
-              <h3 id="localProjectHeading">Local context projects</h3>
+              <p class="eyebrow">Not linked to scanned repos</p>
+              <h3 id="localProjectHeading">Unlinked Local Contexts</h3>
             </div>
             <span id="localProjectCount" class="counter-pill">0</span>
           </div>

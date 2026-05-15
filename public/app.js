@@ -31,16 +31,13 @@ const labels = {
 };
 
 const categoryLabels = {
+  agents: "Agents",
+  memory: "Memory",
   skills: "Skills",
   mcp: "MCP",
-  hook: "Hook",
-  memory: "Memory",
-  software: "Software",
-  docs: "Docs",
-  infra: "Infra",
-  data: "Data",
-  research: "Research",
-  games: "Games",
+  workflow: "Workflow",
+  rules: "Rules",
+  hook: "Hooks",
   other: "Other",
 };
 
@@ -192,8 +189,16 @@ function statusBadge(status) {
 }
 
 function categoryItems(repo) {
-  const categories = asArray(repo.categories).length ? asArray(repo.categories) : [repo.category || "other"];
-  const labels = asArray(repo.categoryLabels).length ? asArray(repo.categoryLabels) : [repo.categoryLabel || categoryLabels[categories[0]] || categories[0]];
+  const categories = asArray(repo.contextKinds).length
+    ? asArray(repo.contextKinds)
+    : asArray(repo.categories).length
+      ? asArray(repo.categories)
+      : [repo.category || "other"];
+  const labels = asArray(repo.contextLabels).length
+    ? asArray(repo.contextLabels)
+    : asArray(repo.categoryLabels).length
+      ? asArray(repo.categoryLabels)
+      : [repo.categoryLabel || categoryLabels[categories[0]] || categories[0]];
   return categories.map((category, index) => ({
     category: category || "other",
     label: labels[index] || categoryLabels[category] || category,
@@ -214,6 +219,29 @@ function categoryBadges(repo) {
 
 function hasCategory(repo, category) {
   return categoryItems(repo).some((item) => item.category === category);
+}
+
+function contextEvidenceItems(repo) {
+  const direct = asArray(repo.contextEvidence);
+  const local = asArray(repo.localContextMatches).flatMap((item) => asArray(item.evidence));
+  return Array.from(new Set([...direct, ...local].filter(Boolean)));
+}
+
+function knownRepoKeys() {
+  return new Set(state.rows.map((repo) => String(repo.repoKey || "").toLowerCase()).filter(Boolean));
+}
+
+function isUnlinkedLocalContext(project) {
+  const keys = asArray(project.remoteKeys).map((key) => String(key).toLowerCase()).filter(Boolean);
+  if (!keys.length) return true;
+  const known = knownRepoKeys();
+  return !keys.some((key) => known.has(key));
+}
+
+function gitScopeLabel(scope) {
+  if (scope === "self") return "Git root";
+  if (scope === "inside") return "Inside Git";
+  return "No Git";
 }
 
 function visibilityBadge(repo) {
@@ -568,14 +596,14 @@ function renderAccountChips() {
 function renderMetrics() {
   const missingCount = Math.max((state.summary.remoteCount || 0) - (state.summary.matchedRemoteCount || 0), 0);
   const accountCount = asArray(state.summary.accounts).length || (state.summary.accountLogin ? 1 : 0);
-  const categoryCount = Object.keys(state.summary.categoryCounts || {}).length;
+  const categoryCount = Object.keys(state.summary.contextKindCounts || state.summary.categoryCounts || {}).length;
   const metrics = [
     ["Remote repos", state.summary.remoteCount],
     ["Accounts", accountCount],
-    ["Tags", categoryCount],
+    ["Context tabs", categoryCount],
     ["Local Git", state.summary.localRepoCount],
-    ["Local projects", state.summary.localProjectCount],
-    ["No Git projects", state.summary.localProjectNoGitCount],
+    ["Unlinked contexts", state.summary.unlinkedContextCount],
+    ["No Git contexts", state.summary.localProjectNoGitCount],
     ["Matched", state.summary.matchedRemoteCount],
     ["Missing", missingCount],
   ];
@@ -637,6 +665,10 @@ function filteredRows() {
       categoryItems(repo)
         .map((item) => item.category)
         .join(" "),
+      contextEvidenceItems(repo).join(" "),
+      asArray(repo.localContextMatches)
+        .map((item) => [item.name, item.path, categoryText(item), asArray(item.remoteKeys).join(" "), asArray(item.evidence).join(" ")].join(" "))
+        .join(" "),
       repo.language,
       repo.defaultBranch,
       localPaths.join(" "),
@@ -681,7 +713,7 @@ function renderRepoTable() {
     <div class="table-header" role="row">
       <span>Repository</span>
       <span>Account</span>
-      <span>Tags</span>
+      <span>Context</span>
       <span>Status</span>
       <span>Language</span>
       <span>Pushed</span>
@@ -864,6 +896,58 @@ async function loadRepoDetails(repo, { force = false } = {}) {
   }
 }
 
+function renderContextEvidence(repo) {
+  const evidence = contextEvidenceItems(repo);
+  if (!evidence.length) return "";
+  return `
+    <section class="context-evidence-panel">
+      <div class="detail-section-head small">
+        <h4>Context evidence</h4>
+        <span class="counter-pill">${formatNumber(evidence.length)}</span>
+      </div>
+      <div class="context-evidence-list">
+        ${evidence.map((item) => `<span class="badge evidence">${escapeHtml(item)}</span>`).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderLocalContextMatches(repo) {
+  const contexts = asArray(repo.localContextMatches);
+  if (!contexts.length) return "";
+  return `
+    <section class="context-evidence-panel">
+      <div class="detail-section-head small">
+        <h4>Local context</h4>
+        <span class="counter-pill">${formatNumber(contexts.length)}</span>
+      </div>
+      <div class="path-list">
+        ${contexts
+          .map((context) => {
+            const scope = context.gitScope || (context.isGitRepo ? "self" : "none");
+            return `
+              <article class="path-item">
+                <div>
+                  <span class="path-text" title="${escapeHtml(context.path)}">${escapeHtml(context.name || baseName(context.path))}</span>
+                  <div class="path-subtext">${escapeHtml(context.path || "")}</div>
+                  <div class="path-meta">
+                    ${categoryBadges(context)}
+                    <span class="badge git-scope-${escapeHtml(scope)}">${escapeHtml(gitScopeLabel(scope))}</span>
+                    ${context.dirty ? statusBadge("dirty") : ""}
+                  </div>
+                </div>
+                <button class="icon-button" type="button" data-open-path="${escapeHtml(context.path)}" title="Open local context" aria-label="Open local context">
+                  ${icons.folder}
+                </button>
+              </article>
+            `;
+          })
+          .join("")}
+      </div>
+    </section>
+  `;
+}
+
 function renderDetails() {
   const repo = state.rows.find((item) => item.id === state.selectedId);
   if (!repo) {
@@ -925,7 +1009,7 @@ function renderDetails() {
 
     <div class="detail-grid">
       <div class="detail-kv"><span>Account</span><strong>${escapeHtml(repo.owner || "current")}</strong></div>
-      <div class="detail-kv"><span>Categories</span><strong>${escapeHtml(categoryText(repo))}</strong></div>
+      <div class="detail-kv"><span>Context tabs</span><strong>${escapeHtml(categoryText(repo))}</strong></div>
       <div class="detail-kv"><span>Language</span><strong>${escapeHtml(repo.language || "none")}</strong></div>
       <div class="detail-kv"><span>Default branch</span><strong>${escapeHtml(repo.defaultBranch || "none")}</strong></div>
       <div class="detail-kv"><span>Last pushed</span><strong>${escapeHtml(formatDate(repo.pushedAt) || "none")}</strong></div>
@@ -933,6 +1017,8 @@ function renderDetails() {
     </div>
 
     <div class="path-list">${pathList}</div>
+    ${renderContextEvidence(repo)}
+    ${renderLocalContextMatches(repo)}
     ${renderGitHubPanel(repo)}
   `;
   if (!state.repoDetails[repo.id] && !state.repoDetailsLoading[repo.id]) {
@@ -974,8 +1060,18 @@ function filteredLocalProjects() {
   const query = state.filters.search.trim().toLowerCase();
   return state.localProjects
     .filter((project) => {
+      if (!isUnlinkedLocalContext(project)) return false;
       const remoteKeys = asArray(project.remoteKeys).join(" ");
-      const searchable = [project.name, project.path, remoteKeys, categoryText(project), asArray(project.contextKinds).join(" ")]
+      const searchable = [
+        project.name,
+        project.path,
+        remoteKeys,
+        project.nearestGitRoot,
+        project.gitScope,
+        categoryText(project),
+        asArray(project.contextKinds).join(" "),
+        asArray(project.evidence).join(" "),
+      ]
         .join(" ")
         .toLowerCase();
       if (query && !searchable.includes(query)) return false;
@@ -989,17 +1085,18 @@ function renderLocalProjects() {
   const projects = filteredLocalProjects();
   elements.localProjectCount.textContent = formatNumber(projects.length);
   if (!projects.length) {
-    elements.localProjectList.innerHTML = '<div class="empty-line">No local context projects match the current filters.</div>';
+    elements.localProjectList.innerHTML = '<div class="empty-line">No unlinked local contexts match the current filters.</div>';
     return;
   }
 
   elements.localProjectList.innerHTML = projects
     .map((project) => {
       const remoteKeys = asArray(project.remoteKeys).filter(Boolean);
-      const kinds = asArray(project.contextKinds).filter(Boolean).join(" / ");
-      const gitBadge = project.isGitRepo
-        ? `<span class="badge git-ready">Git repo</span>${project.dirty ? statusBadge("dirty") : statusBadge(project.gitStatus || "unknown")}`
-        : statusBadge("not-git");
+      const evidence = asArray(project.evidence).filter(Boolean).slice(0, 4);
+      const scope = project.gitScope || (project.isGitRepo ? "self" : "none");
+      const gitBadge = `<span class="badge git-scope-${escapeHtml(scope)}">${escapeHtml(gitScopeLabel(scope))}</span>${
+        scope !== "none" ? (project.dirty ? statusBadge("dirty") : statusBadge(project.gitStatus || "unknown")) : ""
+      }`;
       return `
         <article class="context-project-card">
           <div class="context-project-title">
@@ -1011,10 +1108,14 @@ function renderLocalProjects() {
           </div>
           <div class="context-project-meta">
             ${categoryBadges(project)}
-            <span class="badge">${escapeHtml(kinds || "Context")}</span>
             ${gitBadge}
             ${project.branch ? `<span class="badge">${escapeHtml(project.branch)}</span>` : ""}
           </div>
+          ${
+            evidence.length
+              ? `<div class="context-evidence-list compact">${evidence.map((item) => `<span class="badge evidence">${escapeHtml(item)}</span>`).join("")}</div>`
+              : ""
+          }
           <div class="context-project-foot">
             <span>${escapeHtml(remoteKeys.length ? remoteKeys.join(", ") : "No GitHub remote linked")}</span>
             <span>${escapeHtml(formatDateShort(project.modifiedAt) || "no modified time")}</span>
@@ -1167,7 +1268,7 @@ async function refreshInventory({ automatic = false } = {}) {
     render();
     completeOperation(
       "Scan complete",
-      `${formatNumber(state.rows.length)} repositories and ${formatNumber(state.localProjects.length)} local context projects loaded`,
+      `${formatNumber(state.rows.length)} repositories and ${formatNumber(state.summary.unlinkedContextCount || filteredLocalProjects().length)} unlinked local contexts loaded`,
     );
   } catch (error) {
     showError(error.message);

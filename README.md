@@ -26,7 +26,7 @@
 
 ## Why RepoAtlas
 
-GitHub becomes a real context layer only when remote repositories, local folders, account boundaries, and project tags are visible in one place. RepoAtlas connects those layers so you can see what exists online, what is cloned locally, what has drifted, and which repositories belong to contexts such as Skills, MCP, Hook, Memory, Software, Docs, Infra, and Research.
+GitHub becomes a real context layer only when remote repositories, local folders, account boundaries, and project context tabs are visible in one place. RepoAtlas connects those layers so you can see what exists online, what is cloned locally, what has drifted, and which repositories belong to contexts such as Agents, Memory, Skills, MCP, Workflow, Rules, and Hooks.
 
 ## Highlights
 
@@ -34,8 +34,8 @@ GitHub becomes a real context layer only when remote repositories, local folders
 |---|---|
 | Multi-account inventory | Scan one or many GitHub accounts or account-router aliases in the same atlas. |
 | Local bridge | Match `github.com/owner/repo` remotes to local Git folders and open them from the app. |
-| Context tags | Automatically tag repositories as Skills, MCP, Hook, Memory, Software, Docs, Infra, Data, Research, Games, or Other. A repo can carry multiple tags. |
-| Local context projects | Scan local Skill, MCP, Hook, and Agent-style folders and show whether each one is initialized as a Git repository. |
+| Context tabs | Automatically tag repositories as Agents, Memory, Skills, MCP, Workflow, Rules, Hooks, or Other. A repo can carry multiple tabs. |
+| Local context evidence | Scan local Agents/Memory/Skills/MCP/Workflow/Rules/Hooks markers, attach matched evidence to repositories, and keep unlinked contexts in a secondary panel. |
 | Drift signals | Show `synced`, `behind`, `ahead`, `diverged`, `dirty`, `no-upstream`, and `no-local-copy`. |
 | Themeable dashboard | Switch between Atlas, Midnight, Paper, and Aurora themes. |
 | Guided login | Check GitHub CLI status, launch browser login, or set a custom `gh.exe` path from the app. |
@@ -127,31 +127,30 @@ cargo build --release
 flowchart LR
   A["GitHub CLI accounts"] --> B["Remote repositories"]
   C["Scan roots"] --> D["Local Git repositories"]
-  C --> J["Local context projects"]
+  C --> J["Local context evidence"]
   D --> E["Remote URL normalization"]
   B --> F["Repository key map"]
   E --> F
   F --> G["Sync status + local paths"]
-  J --> H["Git initialized? + context cards"]
+  J --> H["Context tabs + Git scope"]
   G --> H
   H --> I["RepoAtlas dashboard + reports"]
 ```
 
-## Context Tags
+## Context Tabs
 
-RepoAtlas ships with automatic tag inference so a repository collection can become a usable context map. Repositories can carry multiple tags, so a RAG project can appear under both Memory and Research, while a hook utility can appear under Hook and Software.
+RepoAtlas ships with automatic context inference so a repository collection can become a usable agent-context map without stopping being repository-centered. Repositories can carry multiple tabs, so an `AGENTS.md` project can appear under both Agents and Rules, while a local MCP skill pack can appear under both Skills and MCP.
 
-| Tag | Typical signals |
+| Tab | Typical signals |
 |---|---|
+| Agents | `.codex/`, `.claude/`, `.agents/`, `agents/`, `AGENTS.md`, `CLAUDE.md`, agent/codex/claude naming. |
+| Memory | `memory/`, `memories/`, `memory-bank/`, `knowledge/`, `MEMORY.md`, RAG/vector/knowledge wording. |
 | Skills | Codex skills, agent skills, local `.codex/skills` style projects. |
 | MCP | MCP servers, connectors, model-context-protocol tooling. |
-| Hook | Git hooks, pre-commit/pre-push automation, webhook tooling. |
-| Memory | Memory banks, knowledge systems, RAG, vector stores, notes. |
-| Software | Desktop apps, CLIs, tools, extensions, release utilities. |
-| Docs | Documentation, websites, roadmaps, course material. |
-| Infra | Workflows, CI, deployment, Docker, routers, config. |
-| Data | Datasets, corpora, benchmarks, CSV/JSONL collections. |
-| Research | Papers, models, LLM/NLP/agent experiments. |
+| Workflow | `.github/workflows/`, `workflow(s)`, GitHub Actions, CI/CD wording. |
+| Rules | `.cursor/rules/`, `.cursorrules`, `rules/`, `RULES.md`, `AGENTS.md`, `CLAUDE.md`. |
+| Hooks | `.githooks/`, `hooks/`, `.pre-commit-config.yaml`, pre-push/webhook tooling. |
+| Other | Repositories without a confident context signal. |
 
 ## Configuration
 

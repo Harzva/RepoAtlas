@@ -1022,11 +1022,34 @@ fn flatten_inventory(inventory: &Value) -> Value {
     let mut status_counts = BTreeMap::<String, u64>::new();
     let mut language_counts = BTreeMap::<String, u64>::new();
     let mut category_counts = BTreeMap::<String, u64>::new();
+    let mut context_kind_counts = BTreeMap::<String, u64>::new();
     let mut public_count = 0_u64;
     let mut private_count = 0_u64;
     let mut fork_count = 0_u64;
     let mut archived_count = 0_u64;
     let mut local_match_count = 0_u64;
+    let mut local_contexts_by_remote = BTreeMap::<String, Vec<Value>>::new();
+    for project in &local_projects_in {
+        for key in value_string_array(project.get("remoteKeys")) {
+            local_contexts_by_remote
+                .entry(key.to_ascii_lowercase())
+                .or_default()
+                .push(project.clone());
+        }
+    }
+    let scanned_remote_keys = rows_in
+        .iter()
+        .filter_map(|row| {
+            row.get("remote")
+                .and_then(|remote| remote.get("repoKey"))
+                .and_then(Value::as_str)
+                .map(str::to_ascii_lowercase)
+        })
+        .collect::<BTreeSet<_>>();
+    let unlinked_context_count = local_projects_in
+        .iter()
+        .filter(|project| context_project_unlinked(project, &scanned_remote_keys))
+        .count();
 
     for (index, row) in rows_in.iter().enumerate() {
         let remote = row.get("remote").cloned().unwrap_or_else(|| json!({}));
@@ -1100,6 +1123,7 @@ fn flatten_inventory(inventory: &Value) -> Value {
         }
         local_match_count += matches.len() as u64;
 
+        let repo_key = remote.get("repoKey").and_then(Value::as_str).unwrap_or("");
         let name = remote
             .get("nameWithOwner")
             .and_then(Value::as_str)
@@ -1108,7 +1132,25 @@ fn flatten_inventory(inventory: &Value) -> Value {
             .get("description")
             .and_then(Value::as_str)
             .unwrap_or("");
-        let categories = classify_repo_categories(name, description, &local_path_text);
+        let topics = repo_topics(&remote);
+        let local_context_matches = row
+            .get("localContextMatches")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_else(|| {
+                local_contexts_by_remote
+                    .get(repo_key)
+                    .cloned()
+                    .unwrap_or_default()
+            });
+        let classification = classify_repo_context(
+            name,
+            description,
+            &topics,
+            &local_path_text,
+            &local_context_matches,
+        );
+        let categories = classification.categories;
         let category = primary_category(&categories);
         let primary_label = category_label(&category);
         let category_labels = categories
@@ -1117,8 +1159,8 @@ fn flatten_inventory(inventory: &Value) -> Value {
             .collect::<Vec<_>>();
         for category in &categories {
             *category_counts.entry(category.clone()).or_insert(0) += 1;
+            *context_kind_counts.entry(category.clone()).or_insert(0) += 1;
         }
-        let repo_key = remote.get("repoKey").and_then(Value::as_str).unwrap_or("");
         let id = if repo_key.is_empty() {
             format!("{name}{index}")
         } else {
@@ -1146,8 +1188,13 @@ fn flatten_inventory(inventory: &Value) -> Value {
             "description": description,
             "category": category,
             "categoryLabel": primary_label,
-            "categories": categories,
-            "categoryLabels": category_labels,
+            "categories": categories.clone(),
+            "categoryLabels": category_labels.clone(),
+            "contextKinds": categories,
+            "contextLabels": category_labels,
+            "contextEvidence": classification.evidence,
+            "localContextMatches": local_context_matches,
+            "topics": topics,
             "localStatus": local_status,
             "localStatusList": local_status_list,
             "localMatchCount": matches.len(),
@@ -1194,8 +1241,10 @@ fn flatten_inventory(inventory: &Value) -> Value {
                 "status": local.get("status").and_then(Value::as_str).unwrap_or("unknown"),
                 "category": category,
                 "categoryLabel": primary_label,
-                "categories": categories,
-                "categoryLabels": category_labels,
+                "categories": categories.clone(),
+                "categoryLabels": category_labels.clone(),
+                "contextKinds": categories,
+                "contextLabels": category_labels,
                 "head": local.get("head").and_then(Value::as_str).unwrap_or(""),
                 "upstream": local.get("upstream").and_then(Value::as_str).unwrap_or(""),
                 "upstreamSha": local.get("upstreamSha").and_then(Value::as_str).unwrap_or(""),
@@ -1242,10 +1291,14 @@ fn flatten_inventory(inventory: &Value) -> Value {
                 "path": path,
                 "category": category,
                 "categoryLabel": primary_label,
-                "categories": categories,
-                "categoryLabels": category_labels,
-                "contextKinds": project.get("contextKinds").cloned().unwrap_or_else(|| json!([])),
+                "categories": categories.clone(),
+                "categoryLabels": category_labels.clone(),
+                "contextKinds": categories,
+                "contextLabels": category_labels,
+                "evidence": project.get("evidence").cloned().unwrap_or_else(|| json!([])),
+                "gitScope": project.get("gitScope").and_then(Value::as_str).unwrap_or("none"),
                 "isGitRepo": project.get("isGitRepo").and_then(Value::as_bool).unwrap_or(false),
+                "nearestGitRoot": project.get("nearestGitRoot").and_then(Value::as_str).unwrap_or(""),
                 "gitStatus": project.get("gitStatus").and_then(Value::as_str).unwrap_or("not-git"),
                 "branch": project.get("branch").and_then(Value::as_str).unwrap_or(""),
                 "dirty": project.get("dirty").and_then(Value::as_bool).unwrap_or(false),
@@ -1267,6 +1320,7 @@ fn flatten_inventory(inventory: &Value) -> Value {
             "localProjectCount": local_projects.len(),
             "localProjectGitCount": local_projects.iter().filter(|project| project.get("isGitRepo").and_then(Value::as_bool).unwrap_or(false)).count(),
             "localProjectNoGitCount": local_projects.iter().filter(|project| !project.get("isGitRepo").and_then(Value::as_bool).unwrap_or(false)).count(),
+            "unlinkedContextCount": unlinked_context_count,
             "localMatchCount": local_match_count,
             "publicCount": public_count,
             "privateCount": private_count,
@@ -1275,6 +1329,7 @@ fn flatten_inventory(inventory: &Value) -> Value {
             "statusCounts": status_counts,
             "languageCounts": language_counts,
             "categoryCounts": category_counts,
+            "contextKindCounts": context_kind_counts,
             "scanRoots": inventory.get("scanRoots").cloned().unwrap_or_else(|| json!([])),
             "accounts": inventory.get("accounts").cloned().unwrap_or_else(|| legacy_accounts(inventory)),
             "accountErrors": inventory.get("accountErrors").cloned().unwrap_or_else(|| json!([])),
@@ -1346,65 +1401,63 @@ fn classify_repo(name: &str, description: &str, local_paths: &[String]) -> Strin
 }
 
 fn classify_repo_categories(name: &str, description: &str, local_paths: &[String]) -> Vec<String> {
-    let haystack =
-        format!("{} {} {}", name, description, local_paths.join(" ")).to_ascii_lowercase();
-    let name_paths = format!("{} {}", name, local_paths.join(" ")).to_ascii_lowercase();
-    let description = description.to_ascii_lowercase();
-    let mut categories = Vec::new();
+    classify_repo_context(name, description, &[], local_paths, &[]).categories
+}
 
-    if contains_any(
+#[derive(Default)]
+struct ContextClassification {
+    categories: Vec<String>,
+    evidence: Vec<String>,
+}
+
+fn classify_repo_context(
+    name: &str,
+    description: &str,
+    topics: &[String],
+    local_paths: &[String],
+    local_contexts: &[Value],
+) -> ContextClassification {
+    let name_paths_topics =
+        format!("{} {} {}", name, topics.join(" "), local_paths.join(" ")).to_ascii_lowercase();
+    let description_lower = description.to_ascii_lowercase();
+    let haystack = format!("{name_paths_topics} {description_lower}");
+    let mut categories = Vec::new();
+    let mut evidence = Vec::new();
+
+    if contains_any_token(
         &haystack,
         &[
-            "model-context-protocol",
-            "mcp-",
-            "-mcp",
-            "/mcp",
-            " mcp",
-            "mcp server",
-            "connector",
-        ],
-    ) {
-        categories.push("mcp".to_string());
-    }
-    if contains_any(
-        &haystack,
-        &[
-            "hook",
-            "hooks",
-            "githook",
-            "git-hook",
-            "pre-commit",
-            "post-commit",
-            "pre-push",
-            "webhook",
-        ],
-    ) {
-        categories.push("hook".to_string());
-    }
-    if contains_any(
-        &name_paths,
-        &[
-            "skills",
-            "codex-skill",
-            "codex-skills",
-            "agent-skill",
-            "agent-skills",
-            "agents/skills",
-            ".codex/skills",
+            "agent",
+            "agents",
+            "agentic",
+            "codex",
+            "claude",
+            "autogen",
+            "langgraph",
+            "crew",
         ],
     ) || contains_any(
-        &description,
+        &haystack,
         &[
-            "codex skill",
-            "codex skills",
-            "agent skill pack",
-            "skill pack",
-            "skill repository",
+            "agent",
+            "codex",
+            "claude",
+            ".codex",
+            ".claude",
+            ".agents",
+            "agents.md",
+            "claude.md",
         ],
     ) {
-        categories.push("skills".to_string());
+        push_context(
+            &mut categories,
+            &mut evidence,
+            "agents",
+            "repo text: agent/codex/claude",
+        );
     }
-    if contains_any(
+
+    if contains_any_token(
         &haystack,
         &[
             "memory",
@@ -1414,75 +1467,232 @@ fn classify_repo_categories(name: &str, description: &str, local_paths: &[String
             "vector",
             "obsidian",
         ],
-    ) {
-        categories.push("memory".to_string());
-    }
-    if contains_any(
+    ) || contains_any(
         &haystack,
         &[
-            "desktop",
-            "app",
-            "software",
-            "cli",
-            "tool",
-            "extension",
-            "market",
-            "release",
-            "webview",
+            "memory",
+            "memories",
+            "knowledge",
+            "obsidian",
+            "memory-bank",
+            "memory.md",
         ],
     ) {
-        categories.push("software".to_string());
+        push_context(
+            &mut categories,
+            &mut evidence,
+            "memory",
+            "repo text: memory/knowledge",
+        );
     }
-    if contains_any(
-        &haystack,
-        &[
-            "docs",
-            "documentation",
-            "readme",
-            "website",
-            "blog",
-            "roadmap",
-            "course",
-        ],
-    ) {
-        categories.push("docs".to_string());
+
+    if contains_any_token(&name_paths_topics, &["skill", "skills"])
+        || contains_any(
+            &name_paths_topics,
+            &[
+                "skill",
+                "skills",
+                "skill.md",
+                ".codex/skills",
+                ".codex\\skills",
+            ],
+        )
+        || contains_any(
+            &description_lower,
+            &[
+                "codex skill",
+                "codex skills",
+                "agent skill pack",
+                "skill pack",
+                "skill repository",
+            ],
+        )
+    {
+        push_context(
+            &mut categories,
+            &mut evidence,
+            "skills",
+            "repo text: skill marker",
+        );
     }
-    if contains_any(
-        &haystack,
-        &[
-            "action", "workflow", "docker", "deploy", "pipeline", "ci", "router", "config",
-        ],
-    ) {
-        categories.push("infra".to_string());
+
+    if contains_any_token(&haystack, &["mcp"])
+        || contains_any(
+            &haystack,
+            &[
+                "mcp",
+                "model-context-protocol",
+                ".mcp.json",
+                "mcp.json",
+                "mcp-server",
+            ],
+        )
+    {
+        push_context(
+            &mut categories,
+            &mut evidence,
+            "mcp",
+            "repo text: mcp marker",
+        );
     }
-    if contains_any(
-        &haystack,
-        &["dataset", "corpus", "benchmark", "data", "csv", "jsonl"],
-    ) {
-        categories.push("data".to_string());
+
+    if contains_any_token(&haystack, &["workflow", "workflows", "actions"])
+        || contains_any(
+            &haystack,
+            &[
+                "workflow",
+                "workflows",
+                ".github/workflows",
+                ".github\\workflows",
+                "github actions",
+                "ci/cd",
+            ],
+        )
+    {
+        push_context(
+            &mut categories,
+            &mut evidence,
+            "workflow",
+            "repo text: workflow/actions",
+        );
     }
-    if contains_any(
-        &haystack,
-        &[
-            "paper",
-            "research",
-            "model",
-            "pytorch",
-            "tensorflow",
-            "llm",
-            "nlp",
-            "agent",
-        ],
-    ) {
-        categories.push("research".to_string());
+
+    if contains_any_token(&haystack, &["rule", "rules"])
+        || contains_any(
+            &haystack,
+            &[
+                "rule",
+                "rules",
+                ".cursor/rules",
+                ".cursor\\rules",
+                ".cursorrules",
+                "rules.md",
+                "agents.md",
+                "claude.md",
+            ],
+        )
+    {
+        push_context(
+            &mut categories,
+            &mut evidence,
+            "rules",
+            "repo text: rules marker",
+        );
     }
-    if contains_any(&haystack, &["game", "tic-tac-toe", "chess", "puzzle"]) {
-        categories.push("games".to_string());
+
+    if contains_any_token(&haystack, &["hook", "hooks", "webhook"])
+        || contains_any(
+            &haystack,
+            &[
+                "hook",
+                "hooks",
+                ".githooks",
+                "git-hook",
+                "githook",
+                "pre-commit",
+                "pre-push",
+            ],
+        )
+    {
+        push_context(
+            &mut categories,
+            &mut evidence,
+            "hook",
+            "repo text: hook marker",
+        );
     }
+
+    for context in local_contexts {
+        for category in value_string_array(context.get("categories")) {
+            let context_evidence = value_string_array(context.get("evidence"));
+            let label = if context_evidence.is_empty() {
+                "local context marker".to_string()
+            } else {
+                context_evidence.join(", ")
+            };
+            push_context(&mut categories, &mut evidence, &category, &label);
+        }
+    }
+
     if categories.is_empty() {
         categories.push("other".to_string());
     }
-    unique_owned_strings(categories)
+
+    ContextClassification {
+        categories: order_context_categories(unique_owned_strings(categories)),
+        evidence: unique_owned_strings(evidence),
+    }
+}
+
+fn push_context(
+    categories: &mut Vec<String>,
+    evidence: &mut Vec<String>,
+    category: &str,
+    evidence_text: &str,
+) {
+    categories.push(category.to_string());
+    if !evidence_text.is_empty() {
+        evidence.push(evidence_text.to_string());
+    }
+}
+
+fn order_context_categories(categories: Vec<String>) -> Vec<String> {
+    let values = categories.into_iter().collect::<BTreeSet<_>>();
+    let mut ordered = [
+        "agents", "memory", "skills", "mcp", "workflow", "rules", "hook", "other",
+    ]
+    .iter()
+    .filter(|category| values.contains(*category))
+    .map(|category| (*category).to_string())
+    .collect::<Vec<_>>();
+    for category in values {
+        if !ordered.contains(&category) {
+            ordered.push(category);
+        }
+    }
+    ordered
+}
+
+fn value_string_array(value: Option<&Value>) -> Vec<String> {
+    value
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
+}
+
+fn repo_topics(remote: &Value) -> Vec<String> {
+    let mut topics = Vec::new();
+    if let Some(items) = remote.get("topics").and_then(Value::as_array) {
+        topics.extend(items.iter().filter_map(Value::as_str).map(str::to_string));
+    }
+    if let Some(items) = remote.get("repositoryTopics").and_then(Value::as_array) {
+        for item in items {
+            if let Some(name) = item
+                .get("topic")
+                .and_then(|topic| topic.get("name"))
+                .and_then(Value::as_str)
+                .or_else(|| item.get("name").and_then(Value::as_str))
+            {
+                topics.push(name.to_string());
+            }
+        }
+    }
+    unique_owned_strings(topics)
+}
+
+fn context_project_unlinked(project: &Value, remote_keys: &BTreeSet<String>) -> bool {
+    let keys = value_string_array(project.get("remoteKeys"));
+    keys.is_empty()
+        || !keys
+            .iter()
+            .map(|key| key.to_ascii_lowercase())
+            .any(|key| remote_keys.contains(&key))
 }
 
 fn unique_owned_strings(values: Vec<String>) -> Vec<String> {
@@ -1502,22 +1712,26 @@ fn primary_category(categories: &[String]) -> String {
 
 fn category_label(category: &str) -> &'static str {
     match category {
+        "agents" => "Agents",
+        "memory" => "Memory",
         "skills" => "Skills",
         "mcp" => "MCP",
-        "hook" => "Hook",
-        "memory" => "Memory",
-        "software" => "Software",
-        "docs" => "Docs",
-        "infra" => "Infra",
-        "data" => "Data",
-        "research" => "Research",
-        "games" => "Games",
+        "workflow" => "Workflow",
+        "rules" => "Rules",
+        "hook" => "Hooks",
         _ => "Other",
     }
 }
 
 fn contains_any(haystack: &str, needles: &[&str]) -> bool {
     needles.iter().any(|needle| haystack.contains(needle))
+}
+
+fn contains_any_token(haystack: &str, needles: &[&str]) -> bool {
+    haystack
+        .split(|character: char| !character.is_ascii_alphanumeric())
+        .filter(|token| !token.is_empty())
+        .any(|token| needles.contains(&token))
 }
 
 fn allowed_local_paths(inventory: &Value) -> BTreeSet<String> {
@@ -1745,7 +1959,7 @@ fn list_remote_repos(account: &str) -> Result<Vec<Value>> {
         account.to_string()
     };
     let login = login_text.as_str();
-    let fields = "nameWithOwner,url,description,isPrivate,isArchived,isFork,primaryLanguage,pushedAt,updatedAt,defaultBranchRef";
+    let fields = "nameWithOwner,url,description,isPrivate,isArchived,isFork,primaryLanguage,pushedAt,updatedAt,defaultBranchRef,repositoryTopics";
     let repo_proc = gh_raw(
         if routed { account } else { "" },
         &["repo", "list", login, "--limit", "1000", "--json", fields],
@@ -1794,7 +2008,7 @@ fn list_remote_repos(account: &str) -> Result<Vec<Value>> {
 }
 
 fn list_remote_repos_rest(account: &str, login: &str, routed: bool) -> Result<Vec<Value>> {
-    let jq = ".[] | {nameWithOwner:.full_name,url:.html_url,description:.description,isPrivate:.private,isArchived:.archived,isFork:.fork,primaryLanguage:(if .language == null then null else {name:.language} end),pushedAt:.pushed_at,updatedAt:.updated_at,defaultBranchRef:{name:.default_branch}}";
+    let jq = ".[] | {nameWithOwner:.full_name,url:.html_url,description:.description,isPrivate:.private,isArchived:.archived,isFork:.fork,primaryLanguage:(if .language == null then null else {name:.language} end),pushedAt:.pushed_at,updatedAt:.updated_at,defaultBranchRef:{name:.default_branch},repositoryTopics:(if .topics == null then [] else [.topics[] | {topic:{name:.}}] end)}";
     let route_account = if routed || account.trim().is_empty() {
         account
     } else {
@@ -1969,10 +2183,10 @@ fn find_context_projects(
     max_depth: usize,
     local_repos: &[Value],
 ) -> Vec<Value> {
-    let mut local_by_path = BTreeMap::<String, Value>::new();
+    let mut local_git_roots = Vec::<(String, Value)>::new();
     for local in local_repos {
         if let Some(path) = local.get("path").and_then(Value::as_str) {
-            local_by_path.insert(normalize_path_key(Path::new(path)), local.clone());
+            local_git_roots.push((normalize_path_key(Path::new(path)), local.clone()));
         }
     }
 
@@ -1992,10 +2206,18 @@ fn find_context_projects(
             if projects.contains_key(&key) {
                 continue;
             }
-            let local_git = local_by_path.get(&key);
-            let is_git_repo = local_git.is_some();
+            let local_git = nearest_local_repo(&key, &local_git_roots);
+            let nearest_git_root = local_git
+                .and_then(|(_, local)| local.get("path").and_then(Value::as_str))
+                .unwrap_or("");
+            let git_scope = match local_git {
+                Some((root_key, _)) if root_key == &key => "self",
+                Some(_) => "inside",
+                None => "none",
+            };
+            let is_git_repo = git_scope == "self";
             let remotes = local_git
-                .and_then(|local| local.get("remotes"))
+                .and_then(|(_, local)| local.get("remotes"))
                 .cloned()
                 .unwrap_or_else(|| json!([]));
             let remote_keys = remotes
@@ -2010,6 +2232,9 @@ fn find_context_projects(
                     )
                 })
                 .unwrap_or_else(|| json!([]));
+            let categories = signals.categories.clone();
+            let context_labels = signals.kinds.clone();
+            let evidence = signals.evidence.clone();
 
             projects.insert(
                 key.clone(),
@@ -2017,12 +2242,16 @@ fn find_context_projects(
                     "id": format!("local-project-{key}"),
                     "name": path.file_name().and_then(|value| value.to_str()).unwrap_or("local-project"),
                     "path": path.to_string_lossy().to_string(),
-                    "categories": signals.categories,
-                    "contextKinds": signals.kinds,
+                    "categories": categories.clone(),
+                    "contextKinds": categories,
+                    "contextLabels": context_labels,
+                    "evidence": evidence,
+                    "gitScope": git_scope,
                     "isGitRepo": is_git_repo,
-                    "gitStatus": if is_git_repo { local_git.and_then(|local| local.get("status").and_then(Value::as_str)).unwrap_or("unknown") } else { "not-git" },
-                    "branch": local_git.and_then(|local| local.get("branch").and_then(Value::as_str)).unwrap_or(""),
-                    "dirty": local_git.and_then(|local| local.get("dirty").and_then(Value::as_bool)).unwrap_or(false),
+                    "nearestGitRoot": nearest_git_root,
+                    "gitStatus": local_git.and_then(|(_, local)| local.get("status").and_then(Value::as_str)).unwrap_or("not-git"),
+                    "branch": local_git.and_then(|(_, local)| local.get("branch").and_then(Value::as_str)).unwrap_or(""),
+                    "dirty": local_git.and_then(|(_, local)| local.get("dirty").and_then(Value::as_bool)).unwrap_or(false),
                     "remotes": remotes,
                     "remoteKeys": remote_keys,
                     "modifiedAt": path_modified_at(path),
@@ -2036,6 +2265,7 @@ fn find_context_projects(
 struct LocalContextSignals {
     categories: Vec<String>,
     kinds: Vec<Value>,
+    evidence: Vec<Value>,
 }
 
 fn local_context_signals(path: &Path) -> LocalContextSignals {
@@ -2047,16 +2277,29 @@ fn local_context_signals(path: &Path) -> LocalContextSignals {
     let path_text = path.to_string_lossy().to_ascii_lowercase();
     let mut categories = Vec::new();
     let mut kinds = Vec::new();
+    let mut evidence = Vec::new();
 
     let has_skill_marker = path.join("SKILL.md").is_file()
         || path.join("skill.json").is_file()
+        || path.join("skills").exists()
         || path.join(".codex").join("skills").exists()
         || contains_any(&path_text, &[".codex/skills", ".codex\\skills"])
         || contains_any(&file_name, &["codex-skill", "agent-skill"])
         || file_name.contains("skill");
     if has_skill_marker {
         categories.push("skills".to_string());
-        kinds.push(Value::from("Skill"));
+        kinds.push(Value::from("Skills"));
+        push_marker_evidence(
+            path,
+            &mut evidence,
+            &[
+                "SKILL.md",
+                "skill.json",
+                "skills",
+                ".codex/skills",
+                "directory name: skill",
+            ],
+        );
     }
 
     let has_mcp_marker = path.join("mcp.json").is_file()
@@ -2069,6 +2312,11 @@ fn local_context_signals(path: &Path) -> LocalContextSignals {
     if has_mcp_marker {
         categories.push("mcp".to_string());
         kinds.push(Value::from("MCP"));
+        push_marker_evidence(
+            path,
+            &mut evidence,
+            &[".mcp.json", "mcp.json", "mcp", "directory name: mcp"],
+        );
     }
 
     let has_hook_marker = path.join(".githooks").exists()
@@ -2081,22 +2329,152 @@ fn local_context_signals(path: &Path) -> LocalContextSignals {
         || file_name.contains("hook");
     if has_hook_marker {
         categories.push("hook".to_string());
-        kinds.push(Value::from("Hook"));
+        kinds.push(Value::from("Hooks"));
+        push_marker_evidence(
+            path,
+            &mut evidence,
+            &[
+                ".githooks",
+                "hooks",
+                ".pre-commit-config.yaml",
+                "directory name: hook",
+            ],
+        );
     }
 
     let has_agent_marker = path.join("AGENTS.md").is_file()
+        || path.join("CLAUDE.md").is_file()
+        || path.join(".codex").exists()
+        || path.join(".claude").exists()
         || path.join(".agents").exists()
         || path.join("agents").exists()
+        || file_name == ".codex"
+        || file_name == ".claude"
+        || file_name == ".agents"
         || contains_any(&file_name, &["agent-"])
+        || file_name.contains("codex")
+        || file_name.contains("claude")
         || file_name.contains("agent");
     if has_agent_marker {
-        categories.push("research".to_string());
-        kinds.push(Value::from("Agent"));
+        categories.push("agents".to_string());
+        kinds.push(Value::from("Agents"));
+        push_marker_evidence(
+            path,
+            &mut evidence,
+            &[
+                "AGENTS.md",
+                "CLAUDE.md",
+                ".codex",
+                ".claude",
+                ".agents",
+                "agents",
+                "directory name: agent/codex/claude",
+            ],
+        );
+    }
+
+    let has_memory_marker = path.join("MEMORY.md").is_file()
+        || path.join("memory").exists()
+        || path.join("memories").exists()
+        || path.join("memory-bank").exists()
+        || path.join("knowledge").exists()
+        || contains_any(
+            &file_name,
+            &["memory", "memories", "memory-bank", "knowledge"],
+        );
+    if has_memory_marker {
+        categories.push("memory".to_string());
+        kinds.push(Value::from("Memory"));
+        push_marker_evidence(
+            path,
+            &mut evidence,
+            &[
+                "MEMORY.md",
+                "memory",
+                "memories",
+                "memory-bank",
+                "knowledge",
+                "directory name: memory/knowledge",
+            ],
+        );
+    }
+
+    let has_workflow_marker = path.join(".github").join("workflows").exists()
+        || path.join("workflows").exists()
+        || path.join("workflow").exists()
+        || contains_any(&path_text, &[".github/workflows", ".github\\workflows"])
+        || contains_any(&file_name, &["workflow", "workflows"]);
+    if has_workflow_marker {
+        categories.push("workflow".to_string());
+        kinds.push(Value::from("Workflow"));
+        push_marker_evidence(
+            path,
+            &mut evidence,
+            &[
+                ".github/workflows",
+                "workflows",
+                "workflow",
+                "directory name: workflow",
+            ],
+        );
+    }
+
+    let has_rules_marker = path.join(".cursor").join("rules").exists()
+        || path.join(".cursorrules").is_file()
+        || path.join("rules").exists()
+        || path.join("RULES.md").is_file()
+        || path.join("AGENTS.md").is_file()
+        || path.join("CLAUDE.md").is_file()
+        || contains_any(&path_text, &[".cursor/rules", ".cursor\\rules"])
+        || file_name.contains("rules");
+    if has_rules_marker {
+        categories.push("rules".to_string());
+        kinds.push(Value::from("Rules"));
+        push_marker_evidence(
+            path,
+            &mut evidence,
+            &[
+                ".cursor/rules",
+                ".cursorrules",
+                "rules",
+                "RULES.md",
+                "AGENTS.md",
+                "CLAUDE.md",
+                "directory name: rules",
+            ],
+        );
     }
 
     LocalContextSignals {
-        categories: unique_owned_strings(categories),
+        categories: order_context_categories(unique_owned_strings(categories)),
         kinds: unique_values(kinds),
+        evidence: unique_values(evidence),
+    }
+}
+
+fn nearest_local_repo<'a>(
+    path_key: &str,
+    local_git_roots: &'a [(String, Value)],
+) -> Option<&'a (String, Value)> {
+    local_git_roots
+        .iter()
+        .filter(|(root_key, _)| {
+            path_key == root_key
+                || path_key.starts_with(&format!("{root_key}\\"))
+                || path_key.starts_with(&format!("{root_key}/"))
+        })
+        .max_by_key(|(root_key, _)| root_key.len())
+}
+
+fn push_marker_evidence(path: &Path, evidence: &mut Vec<Value>, markers: &[&str]) {
+    for marker in markers {
+        if marker.starts_with("directory name:") {
+            continue;
+        }
+        let marker_path = marker.replace('/', std::path::MAIN_SEPARATOR_STR);
+        if path.join(&marker_path).exists() {
+            evidence.push(Value::from(*marker));
+        }
     }
 }
 
@@ -2409,6 +2787,15 @@ fn merge_inventory(
             }
         }
     }
+    let mut local_contexts_by_key: BTreeMap<String, Vec<Value>> = BTreeMap::new();
+    for project in &local_projects {
+        for key in value_string_array(project.get("remoteKeys")) {
+            local_contexts_by_key
+                .entry(key.to_ascii_lowercase())
+                .or_default()
+                .push(project.clone());
+        }
+    }
 
     let mut rows = Vec::new();
     let mut matched = 0_u64;
@@ -2426,6 +2813,7 @@ fn merge_inventory(
         rows.push(json!({
             "remote": repo,
             "localMatches": matches,
+            "localContextMatches": local_contexts_by_key.get(key).cloned().unwrap_or_default(),
             "localStatus": rows_local_status(&locals_by_key, key),
             "defaultBranch": default_branch,
         }));
@@ -2772,10 +3160,13 @@ mod tests {
 
     #[test]
     fn classify_context_categories() {
+        let agent_skills = classify_repo_categories("owner/agent-skills", "Codex skill pack", &[]);
         assert_eq!(
             classify_repo("owner/agent-skills", "Codex skill pack", &[]),
-            "skills"
+            "agents"
         );
+        assert!(agent_skills.contains(&"agents".to_string()));
+        assert!(agent_skills.contains(&"skills".to_string()));
         assert_eq!(
             classify_repo("owner/local-mcp-server", "Model context protocol", &[]),
             "mcp"
@@ -2797,8 +3188,8 @@ mod tests {
             "Agentic campus QA system with RAG Wiki memory, and GBrain skills",
             &[],
         );
+        assert!(campus.contains(&"agents".to_string()));
         assert!(campus.contains(&"memory".to_string()));
-        assert!(campus.contains(&"research".to_string()));
         assert!(!campus.contains(&"skills".to_string()));
 
         let mcp_memory = classify_repo_categories(
@@ -2862,6 +3253,97 @@ mod tests {
             .unwrap()
             .iter()
             .any(|item| item.as_str() == Some("hook")));
+        assert_eq!(
+            project.get("gitScope").and_then(Value::as_str),
+            Some("none")
+        );
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn local_context_markers_cover_agent_taxonomy() {
+        let root = temp_test_dir("context-markers");
+        fs::write(root.join("AGENTS.md"), "").expect("write agents marker");
+        fs::create_dir_all(root.join(".codex").join("skills")).expect("create codex skills");
+        fs::write(root.join(".mcp.json"), "{}").expect("write mcp marker");
+        fs::create_dir_all(root.join(".github").join("workflows")).expect("create workflows");
+        fs::create_dir_all(root.join(".githooks")).expect("create githooks");
+        fs::write(root.join(".pre-commit-config.yaml"), "").expect("write precommit");
+        fs::create_dir_all(root.join("memory-bank")).expect("create memory");
+
+        let signals = local_context_signals(&root);
+        for category in [
+            "agents", "rules", "skills", "mcp", "workflow", "hook", "memory",
+        ] {
+            assert!(
+                signals.categories.contains(&category.to_string()),
+                "{category} should be detected from marker files"
+            );
+        }
+        assert!(signals
+            .evidence
+            .iter()
+            .any(|item| item.as_str() == Some("AGENTS.md")));
+        assert!(signals
+            .evidence
+            .iter()
+            .any(|item| item.as_str() == Some(".github/workflows")));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn context_projects_report_git_scope() {
+        let root = temp_test_dir("context-git-scope");
+        let repo = root.join("repo-with-context");
+        fs::create_dir_all(&repo).expect("create repo dir");
+        let init = run("git", &["init"], Some(&repo));
+        assert!(
+            init.status.success(),
+            "git init failed: {}",
+            process_message(&init)
+        );
+        fs::write(repo.join("AGENTS.md"), "").expect("write agents marker");
+        let nested_skill = repo.join("nested-skill");
+        fs::create_dir_all(&nested_skill).expect("create nested skill");
+        fs::write(nested_skill.join("SKILL.md"), "").expect("write skill marker");
+        let no_git = root.join("loose-mcp");
+        fs::create_dir_all(&no_git).expect("create loose mcp");
+        fs::write(no_git.join(".mcp.json"), "{}").expect("write mcp marker");
+
+        let local_repos = vec![inspect_local_repo(&repo, false)];
+        let projects = find_context_projects(&[root.clone()], 5, &local_repos);
+        let find_by_path = |target: &Path| {
+            projects
+                .iter()
+                .find(|item| {
+                    item.get("path")
+                        .and_then(Value::as_str)
+                        .map(|path| {
+                            normalize_path_key(Path::new(path)) == normalize_path_key(target)
+                        })
+                        .unwrap_or(false)
+                })
+                .expect("context project")
+        };
+
+        assert_eq!(
+            find_by_path(&repo).get("gitScope").and_then(Value::as_str),
+            Some("self")
+        );
+        assert_eq!(
+            find_by_path(&nested_skill)
+                .get("gitScope")
+                .and_then(Value::as_str),
+            Some("inside")
+        );
+        assert_eq!(
+            find_by_path(&no_git)
+                .get("gitScope")
+                .and_then(Value::as_str),
+            Some("none")
+        );
 
         let _ = fs::remove_dir_all(root);
     }
@@ -2925,7 +3407,20 @@ mod tests {
                     "localMatches": []
                 }
             ],
-            "localOnly": []
+            "localOnly": [],
+            "localProjects": [
+                {
+                    "id": "context-1",
+                    "name": "example-skill",
+                    "path": "D:\\code\\example-skill",
+                    "categories": ["rules"],
+                    "contextKinds": ["rules"],
+                    "evidence": ["AGENTS.md"],
+                    "gitScope": "self",
+                    "isGitRepo": true,
+                    "remoteKeys": ["repoatlas/example-skill"]
+                }
+            ]
         });
 
         let flattened = flatten_inventory(&inventory);
@@ -2948,6 +3443,19 @@ mod tests {
         assert_eq!(
             rows[0]
                 .get("categories")
+                .and_then(Value::as_array)
+                .map(Vec::len),
+            Some(2)
+        );
+        assert!(rows[0]
+            .get("categories")
+            .and_then(Value::as_array)
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("rules")));
+        assert_eq!(
+            rows[0]
+                .get("localContextMatches")
                 .and_then(Value::as_array)
                 .map(Vec::len),
             Some(1)

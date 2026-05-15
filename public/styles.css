@@ -1000,7 +1000,7 @@ h3 {
 .table-header,
 .repo-row {
   display: grid;
-  grid-template-columns: minmax(220px, 1.9fr) 104px 96px 112px 92px 98px;
+  grid-template-columns: minmax(220px, 1.8fr) 104px minmax(116px, 0.7fr) 112px 92px 98px;
   gap: 10px;
   align-items: center;
   min-width: 780px;
@@ -1128,35 +1128,53 @@ h3 {
   border-color: rgba(35, 107, 63, 0.24);
 }
 
+.badge.category-agents,
 .badge.category-skills,
-.badge.category-mcp,
-.badge.category-hook {
+.badge.category-mcp {
   color: var(--teal);
   background: var(--teal-soft);
   border-color: color-mix(in srgb, var(--teal) 26%, transparent);
 }
 
 .badge.category-memory,
-.badge.category-research {
+.badge.category-workflow {
   color: var(--blue);
   background: var(--blue-soft);
   border-color: color-mix(in srgb, var(--blue) 24%, transparent);
 }
 
-.badge.category-software,
-.badge.category-infra {
+.badge.category-rules,
+.badge.category-hook {
   color: var(--amber);
   background: var(--amber-soft);
   border-color: color-mix(in srgb, var(--amber) 28%, transparent);
 }
 
-.badge.category-docs,
-.badge.category-data,
-.badge.category-games,
 .badge.category-other {
   color: var(--muted);
   background: color-mix(in srgb, var(--panel-soft) 72%, var(--line) 28%);
   border-color: var(--line);
+}
+
+.badge.evidence {
+  justify-content: flex-start;
+  color: var(--muted);
+  background: var(--panel-soft);
+  border-style: dashed;
+  font-family: "Cascadia Code", "Consolas", monospace;
+}
+
+.badge.git-scope-self,
+.badge.git-scope-inside {
+  color: var(--green);
+  background: var(--green-soft);
+  border-color: rgba(35, 107, 63, 0.24);
+}
+
+.badge.git-scope-none {
+  color: var(--red);
+  background: var(--red-soft);
+  border-color: rgba(201, 56, 42, 0.24);
 }
 
 .detail-panel {
@@ -1268,11 +1286,39 @@ h3 {
   font: 12px/1.35 "Cascadia Code", "Consolas", monospace;
 }
 
+.path-subtext {
+  overflow: hidden;
+  margin-top: 4px;
+  color: var(--muted);
+  font: 11px/1.35 "Cascadia Code", "Consolas", monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .path-meta {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
   margin-top: 6px;
+}
+
+.context-evidence-panel {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.context-evidence-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.context-evidence-list.compact {
+  padding-top: 2px;
 }
 
 .github-detail-panel {

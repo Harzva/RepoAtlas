@@ -1,21 +1,22 @@
-# RepoAtlas v0.5.1
+# RepoAtlas v0.6.0
 
-Local context scan and Hook category release.
+Repository-centered Agent Context Tabs release.
 
 ## Highlights
 
-- Fixed a local scanner regression that could skip normal project folders and report `Local Git 0`.
-- Added the `Hook` tag for hook, githook, pre-commit, pre-push, and webhook repositories.
-- Added local context project discovery for Skill, MCP, Hook, and Agent-style folders under scan roots.
-- Added local context project cards showing whether each folder is an initialized Git repository.
-- Kept existing remote-to-local version drift checks for projects linked to GitHub remotes.
-- Added activity-time sorting options: newest activity, oldest activity, last pushed, and oldest pushed.
+- Replaced the old generic tag filter with repository-centered Context Tabs: Agents, Memory, Skills, MCP, Workflow, Rules, Hooks, and Other.
+- Added multi-label context classification so one GitHub repository can appear under multiple context tabs.
+- Added context evidence for repository details, including marker hits such as `AGENTS.md`, `.codex/skills`, `.github/workflows`, and `.pre-commit-config.yaml`.
+- Attached local context markers back to matched GitHub repositories instead of turning RepoAtlas into a local-folder-first manager.
+- Added Unlinked Local Contexts as a secondary panel for local context folders that do not map to scanned GitHub repositories.
+- Added Git scope labels for local contexts: Git root, Inside Git, and No Git.
+- Updated README and GitHub Pages copy to explain the new repo-centered Agent Context workflow.
 
 ## Compatibility
 
-RepoAtlas still delegates GitHub access to GitHub CLI. Local context project cards are read-only and use the same safe folder-opening allowlist as matched repositories.
+RepoAtlas remains read-only for local context management. It does not read marker file contents, initialize Git repositories, create templates, or edit user context files.
 
 ## Regression guard
 
-- CI runs formatting, `cargo check --locked`, `cargo test --locked`, and `node --check public/app.js`.
-- New tests cover normal directory walking, non-Git hook project detection, and Hook tag classification.
+- CI continues to run formatting, `cargo check --locked`, `cargo test --locked`, and `node --check public/app.js`.
+- New tests cover Agents, Memory, Skills, MCP, Workflow, Rules, Hooks, multi-label classification, local context matching, and Git scope states.
