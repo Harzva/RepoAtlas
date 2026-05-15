@@ -3445,7 +3445,7 @@ mod tests {
                 .get("categories")
                 .and_then(Value::as_array)
                 .map(Vec::len),
-            Some(2)
+            Some(3)
         );
         assert!(rows[0]
             .get("categories")
