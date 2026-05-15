@@ -3438,7 +3438,7 @@ mod tests {
         );
         assert_eq!(
             rows[0].get("category").and_then(Value::as_str),
-            Some("skills")
+            Some("agents")
         );
         assert_eq!(
             rows[0]
@@ -3453,6 +3453,12 @@ mod tests {
             .unwrap()
             .iter()
             .any(|item| item.as_str() == Some("rules")));
+        assert!(rows[0]
+            .get("categories")
+            .and_then(Value::as_array)
+            .unwrap()
+            .iter()
+            .any(|item| item.as_str() == Some("skills")));
         assert_eq!(
             rows[0]
                 .get("localContextMatches")
