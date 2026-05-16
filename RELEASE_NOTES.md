@@ -1,15 +1,21 @@
-# RepoAtlas v0.6.1
+# RepoAtlas v0.6.2
 
-Local Git matching reliability patch.
+Parallel scan and lazy GitHub details release.
 
-## Fixes
+## Highlights
 
-- Fixed a regression where the desktop app could show every remote repository as `Missing local` when the Windows GUI environment could not resolve `git.exe` from `PATH`.
-- Added Git executable discovery for common Windows Git installation paths and the optional `REPO_ATLAS_GIT` override.
-- Kept directories with a `.git` marker as local repository candidates even if `git rev-parse --show-toplevel` fails.
-- Added a fallback remote parser that reads `.git/config`, so local-to-GitHub matching can still work when `git remote -v` is unavailable.
+- Added bounded parallel scanning for GitHub accounts, local scan roots, and local Git repository inspection.
+- Reworked local scanning to index Git roots and Agent Context markers in one filesystem pass per scan root.
+- Changed GitHub live details to load only when the user clicks `Load live details`, avoiding automatic Issues, Pull Requests, Releases, Pages, Deployments, and Packages calls while browsing the repo list.
+- Added cached remote fallback: if GitHub live loading fails because of a timeout or TLS error, RepoAtlas can reuse the last saved remote repository list and still refresh local matching.
+
+## Tuning
+
+- `REPO_ATLAS_REMOTE_WORKERS` controls parallel GitHub account scans.
+- `REPO_ATLAS_LOCAL_SCAN_WORKERS` controls parallel local directory walks.
+- `REPO_ATLAS_LOCAL_GIT_WORKERS` controls parallel local Git inspections.
 
 ## Regression guard
 
-- Added tests for `.git` fallback scanning and `.git/config` remote parsing.
+- Added tests for cached remote repository fallback.
 - CI continues to run formatting, `cargo check --locked`, `cargo test --locked`, and `node --check public/app.js`.

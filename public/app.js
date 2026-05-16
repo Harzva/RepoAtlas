@@ -115,10 +115,10 @@ const guideStorageKey = "repo-atlas-guide-v1";
 const ghPathStorageKey = "repo-atlas-gh-path";
 
 const scanSteps = [
-  ["Auth", "Checking GitHub CLI authentication"],
-  ["Remote", "Loading GitHub repositories"],
-  ["Local", "Scanning local Git folders"],
-  ["Compare", "Comparing remotes and upstream branches"],
+  ["Remote", "Loading GitHub repository lists"],
+  ["Local", "Indexing local folders in parallel"],
+  ["Git", "Checking local Git state"],
+  ["Compare", "Matching local and remote repositories"],
   ["Render", "Updating the atlas"],
 ];
 
@@ -794,7 +794,7 @@ function renderGitHubPanel(repo) {
       <section class="github-detail-panel">
         <div class="detail-section-head">
           <h4>GitHub live details</h4>
-          <button class="action-button" type="button" data-refresh-details="${escapeHtml(repo.id)}">Load</button>
+          <button class="action-button" type="button" data-refresh-details="${escapeHtml(repo.id)}">Load live details</button>
         </div>
       </section>
     `;
@@ -1021,9 +1021,6 @@ function renderDetails() {
     ${renderLocalContextMatches(repo)}
     ${renderGitHubPanel(repo)}
   `;
-  if (!state.repoDetails[repo.id] && !state.repoDetailsLoading[repo.id]) {
-    loadRepoDetails(repo);
-  }
 }
 
 function renderLocalOnly() {

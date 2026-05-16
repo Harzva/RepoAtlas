@@ -33,6 +33,9 @@ static GIT_COMMAND: OnceLock<PathBuf> = OnceLock::new();
 const APP_NAME: &str = "RepoAtlas";
 const INVENTORY_FILE_NAME: &str = "inventory.json";
 const DEFAULT_MAX_DEPTH: usize = 10;
+const DEFAULT_REMOTE_WORKERS: usize = 4;
+const DEFAULT_LOCAL_SCAN_WORKERS: usize = 8;
+const DEFAULT_LOCAL_GIT_WORKERS: usize = 6;
 
 #[derive(Clone)]
 struct AppState {
@@ -488,44 +491,83 @@ fn load_repo_details(account: &str, full_name: &str) -> Result<Value> {
     let owner = parts[0];
     let name = parts[1];
     let repo_path = format!("repos/{owner}/{name}");
-    let repo = gh_api_json(account, vec![repo_path.clone()]).unwrap_or_else(|error| {
-        json!({
-            "full_name": full_name,
-            "html_url": format!("https://github.com/{full_name}"),
-            "error": error.to_string(),
-        })
-    });
+    let (repo, issues, pulls, releases, deployments, pages, packages) = thread::scope(|scope| {
+        let repo_handle = scope.spawn(|| {
+            gh_api_json(account, vec![repo_path.clone()]).unwrap_or_else(|error| {
+                json!({
+                    "full_name": full_name,
+                    "html_url": format!("https://github.com/{full_name}"),
+                    "error": error.to_string(),
+                })
+            })
+        });
+        let issues_handle = scope.spawn(|| search_repo_items(account, full_name, "issue"));
+        let pulls_handle = scope.spawn(|| search_repo_items(account, full_name, "pr"));
+        let releases_handle = scope.spawn(|| {
+            gh_api_json(
+                account,
+                vec![
+                    "--method".into(),
+                    "GET".into(),
+                    format!("{repo_path}/releases"),
+                    "-F".into(),
+                    "per_page=5".into(),
+                ],
+            )
+            .unwrap_or_else(|error| json!({ "error": error.to_string(), "items": [] }))
+        });
+        let deployments_handle = scope.spawn(|| {
+            gh_api_json(
+                account,
+                vec![
+                    "--method".into(),
+                    "GET".into(),
+                    format!("{repo_path}/deployments"),
+                    "-F".into(),
+                    "per_page=5".into(),
+                ],
+            )
+            .unwrap_or_else(|error| json!({ "error": error.to_string(), "items": [] }))
+        });
+        let pages_handle = scope.spawn(|| {
+            gh_api_json(account, vec![format!("{repo_path}/pages")])
+                .map(|value| json!({ "enabled": true, "data": value }))
+                .unwrap_or_else(|error| json!({ "enabled": false, "error": error.to_string() }))
+        });
+        let packages_handle = scope.spawn(|| {
+            repo_packages_graphql(account, owner, name).unwrap_or_else(
+                |error| json!({ "totalCount": 0, "items": [], "error": error.to_string() }),
+            )
+        });
 
-    let issues = search_repo_items(account, full_name, "issue");
-    let pulls = search_repo_items(account, full_name, "pr");
-    let releases = gh_api_json(
-        account,
-        vec![
-            "--method".into(),
-            "GET".into(),
-            format!("{repo_path}/releases"),
-            "-F".into(),
-            "per_page=5".into(),
-        ],
-    )
-    .unwrap_or_else(|error| json!({ "error": error.to_string(), "items": [] }));
-    let deployments = gh_api_json(
-        account,
-        vec![
-            "--method".into(),
-            "GET".into(),
-            format!("{repo_path}/deployments"),
-            "-F".into(),
-            "per_page=5".into(),
-        ],
-    )
-    .unwrap_or_else(|error| json!({ "error": error.to_string(), "items": [] }));
-    let pages = gh_api_json(account, vec![format!("{repo_path}/pages")])
-        .map(|value| json!({ "enabled": true, "data": value }))
-        .unwrap_or_else(|error| json!({ "enabled": false, "error": error.to_string() }));
-    let packages = repo_packages_graphql(account, owner, name).unwrap_or_else(
-        |error| json!({ "totalCount": 0, "items": [], "error": error.to_string() }),
-    );
+        (
+            repo_handle.join().unwrap_or_else(|_| {
+                json!({
+                    "full_name": full_name,
+                    "html_url": format!("https://github.com/{full_name}"),
+                    "error": "repository request panicked",
+                })
+            }),
+            issues_handle.join().unwrap_or_else(
+                |_| json!({ "count": 0, "items": [], "error": "issues request panicked" }),
+            ),
+            pulls_handle.join().unwrap_or_else(
+                |_| json!({ "count": 0, "items": [], "error": "pull requests request panicked" }),
+            ),
+            releases_handle
+                .join()
+                .unwrap_or_else(|_| json!({ "error": "releases request panicked", "items": [] })),
+            deployments_handle.join().unwrap_or_else(
+                |_| json!({ "error": "deployments request panicked", "items": [] }),
+            ),
+            pages_handle
+                .join()
+                .unwrap_or_else(|_| json!({ "enabled": false, "error": "pages request panicked" })),
+            packages_handle.join().unwrap_or_else(
+                |_| json!({ "totalCount": 0, "items": [], "error": "packages request panicked" }),
+            ),
+        )
+    });
 
     let repo_url = repo
         .get("html_url")
@@ -731,7 +773,15 @@ fn refresh_response(body: &[u8], state: &AppState) -> HttpResponse {
         .unwrap_or_else(default_max_depth);
     let scan_roots = request_scan_roots(&payload);
 
-    match scan_inventory(&accounts, &scan_roots, max_depth, fetch).and_then(|inventory| {
+    let cached_inventory = read_inventory(&state.inventory_path).ok();
+    match scan_inventory(
+        &accounts,
+        &scan_roots,
+        max_depth,
+        fetch,
+        cached_inventory.as_ref(),
+    )
+    .and_then(|inventory| {
         write_inventory(&state.inventory_path, &inventory)?;
         Ok(inventory)
     }) {
@@ -1826,11 +1876,76 @@ fn default_fetch() -> bool {
     )
 }
 
+fn worker_limit(env_name: &str, default: usize) -> usize {
+    let requested = env::var(env_name)
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(default);
+    let available = thread::available_parallelism()
+        .map(|value| value.get())
+        .unwrap_or(default.max(1));
+    requested.min(available.max(1)).max(1)
+}
+
+fn remote_worker_limit() -> usize {
+    worker_limit("REPO_ATLAS_REMOTE_WORKERS", DEFAULT_REMOTE_WORKERS)
+}
+
+fn local_scan_worker_limit() -> usize {
+    worker_limit("REPO_ATLAS_LOCAL_SCAN_WORKERS", DEFAULT_LOCAL_SCAN_WORKERS)
+}
+
+fn local_git_worker_limit(fetch: bool) -> usize {
+    let default = if fetch {
+        DEFAULT_LOCAL_GIT_WORKERS.min(4)
+    } else {
+        DEFAULT_LOCAL_GIT_WORKERS
+    };
+    worker_limit("REPO_ATLAS_LOCAL_GIT_WORKERS", default)
+}
+
+fn parallel_map_limited<T, U, F>(items: Vec<T>, limit: usize, mapper: F) -> Vec<U>
+where
+    T: Send,
+    U: Send,
+    F: Fn(T) -> U + Sync,
+{
+    let mut results = Vec::with_capacity(items.len());
+    let mut items = items.into_iter();
+    let limit = limit.max(1);
+    loop {
+        let batch = items.by_ref().take(limit).collect::<Vec<_>>();
+        if batch.is_empty() {
+            break;
+        }
+        let batch_results = thread::scope(|scope| {
+            let handles = batch
+                .into_iter()
+                .map(|item| {
+                    let mapper = &mapper;
+                    scope.spawn(move || mapper(item))
+                })
+                .collect::<Vec<_>>();
+            handles
+                .into_iter()
+                .map(|handle| match handle.join() {
+                    Ok(value) => value,
+                    Err(_) => panic!("parallel scan worker panicked"),
+                })
+                .collect::<Vec<_>>()
+        });
+        results.extend(batch_results);
+    }
+    results
+}
+
 fn scan_inventory(
     accounts: &[String],
     scan_roots: &[PathBuf],
     max_depth: usize,
     fetch: bool,
+    cached_inventory: Option<&Value>,
 ) -> Result<Value> {
     let requested_accounts = if accounts.is_empty() {
         vec![String::new()]
@@ -1841,9 +1956,17 @@ fn scan_inventory(
     let mut account_summaries = Vec::new();
     let mut account_errors = Vec::new();
     let mut seen_repo_keys = BTreeSet::new();
+    let mut remote_source = "live";
 
-    for account in requested_accounts {
-        match list_remote_repos(&account) {
+    for (account, result) in parallel_map_limited(
+        requested_accounts,
+        remote_worker_limit(),
+        |account: String| {
+            let result = list_remote_repos(&account).map_err(|error| error.to_string());
+            (account, result)
+        },
+    ) {
+        match result {
             Ok(repos) => {
                 let account_login = repos
                     .first()
@@ -1876,21 +1999,32 @@ fn scan_inventory(
             Err(error) => {
                 account_errors.push(json!({
                     "alias": account.trim(),
-                    "error": error.to_string(),
+                    "error": error,
                 }));
             }
         }
     }
 
     if remote_repos.is_empty() && !account_errors.is_empty() {
-        return Err(anyhow!(
-            "No GitHub repositories could be loaded. {}",
-            account_errors
-                .iter()
-                .filter_map(|item| item.get("error").and_then(Value::as_str))
-                .collect::<Vec<_>>()
-                .join("; ")
-        ));
+        remote_repos = cached_remote_repos(cached_inventory);
+        if remote_repos.is_empty() {
+            return Err(anyhow!(
+                "No GitHub repositories could be loaded. {}",
+                account_errors
+                    .iter()
+                    .filter_map(|item| item.get("error").and_then(Value::as_str))
+                    .collect::<Vec<_>>()
+                    .join("; ")
+            ));
+        }
+        remote_source = "cached";
+        if account_summaries.is_empty() {
+            account_summaries = cached_accounts(cached_inventory);
+        }
+        account_errors.push(json!({
+            "alias": "cache",
+            "error": "Using the last saved remote repository list because live GitHub loading failed.",
+        }));
     }
     remote_repos.sort_by(|a, b| {
         a.get("nameWithOwner")
@@ -1899,12 +2033,9 @@ fn scan_inventory(
             .cmp(b.get("nameWithOwner").and_then(Value::as_str).unwrap_or(""))
     });
 
-    let git_roots = find_git_roots(scan_roots, max_depth);
-    let local_repos = git_roots
-        .iter()
-        .map(|path| inspect_local_repo(path, fetch))
-        .collect::<Vec<_>>();
-    let local_projects = find_context_projects(scan_roots, max_depth, &local_repos);
+    let local_scan = scan_local_filesystem(scan_roots, max_depth);
+    let local_repos = inspect_local_repos(local_scan.git_roots, fetch);
+    let local_projects = build_context_projects(local_scan.contexts, &local_repos);
     let mut inventory = merge_inventory(remote_repos, local_repos, local_projects);
     let account_aliases = account_summaries
         .iter()
@@ -1947,7 +2078,36 @@ fn scan_inventory(
         .as_object_mut()
         .unwrap()
         .insert("versionCheckUsedFetch".into(), Value::Bool(fetch));
+    inventory
+        .as_object_mut()
+        .unwrap()
+        .insert("remoteSource".into(), Value::from(remote_source));
     Ok(inventory)
+}
+
+fn cached_remote_repos(cached_inventory: Option<&Value>) -> Vec<Value> {
+    cached_inventory
+        .and_then(|inventory| inventory.get("rows").and_then(Value::as_array))
+        .map(|rows| {
+            let mut seen = BTreeSet::new();
+            rows.iter()
+                .filter_map(|row| row.get("remote").cloned())
+                .filter(|repo| {
+                    repo.get("repoKey")
+                        .and_then(Value::as_str)
+                        .map(|key| seen.insert(key.to_string()))
+                        .unwrap_or(false)
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
+}
+
+fn cached_accounts(cached_inventory: Option<&Value>) -> Vec<Value> {
+    cached_inventory
+        .and_then(|inventory| inventory.get("accounts").and_then(Value::as_array))
+        .cloned()
+        .unwrap_or_default()
 }
 
 fn list_remote_repos(account: &str) -> Result<Vec<Value>> {
@@ -2161,28 +2321,103 @@ fn normalize_repo_key(value: &str) -> Option<String> {
     ))
 }
 
-fn find_git_roots(scan_roots: &[PathBuf], max_depth: usize) -> Vec<PathBuf> {
-    let mut repos = BTreeSet::new();
-    for root in scan_roots.iter().filter(|root| root.exists()) {
-        let walker = WalkDir::new(root)
-            .max_depth(max_depth)
-            .into_iter()
-            .filter_entry(|entry| !should_skip_entry(entry));
-        for entry in walker.flatten().filter(|entry| entry.file_type().is_dir()) {
-            if entry.path().join(".git").exists() {
-                let top = git_output(entry.path(), &["rev-parse", "--show-toplevel"])
-                    .map(PathBuf::from)
-                    .unwrap_or_else(|| entry.path().to_path_buf());
-                repos.insert(top);
-            }
+#[derive(Clone)]
+struct LocalContextCandidate {
+    path: PathBuf,
+    signals: LocalContextSignals,
+}
+
+#[derive(Default)]
+struct LocalScanIndex {
+    git_roots: Vec<PathBuf>,
+    contexts: Vec<LocalContextCandidate>,
+}
+
+fn scan_local_filesystem(scan_roots: &[PathBuf], max_depth: usize) -> LocalScanIndex {
+    let roots = scan_roots
+        .iter()
+        .filter(|root| root.exists())
+        .cloned()
+        .collect::<Vec<_>>();
+    let parts = parallel_map_limited(roots, local_scan_worker_limit(), |root| {
+        scan_local_root(&root, max_depth)
+    });
+    merge_local_scan_indexes(parts)
+}
+
+fn scan_local_root(root: &Path, max_depth: usize) -> LocalScanIndex {
+    let mut git_roots = BTreeSet::new();
+    let mut contexts = BTreeMap::<String, LocalContextCandidate>::new();
+    let walker = WalkDir::new(root)
+        .max_depth(max_depth)
+        .into_iter()
+        .filter_entry(|entry| !should_skip_entry(entry));
+    for entry in walker.flatten().filter(|entry| entry.file_type().is_dir()) {
+        let path = entry.path();
+        if path.join(".git").exists() {
+            let top = git_output(path, &["rev-parse", "--show-toplevel"])
+                .map(PathBuf::from)
+                .unwrap_or_else(|| path.to_path_buf());
+            git_roots.insert(top);
+        }
+
+        let signals = local_context_signals(path);
+        if !signals.categories.is_empty() {
+            let key = normalize_path_key(path);
+            contexts
+                .entry(key)
+                .or_insert_with(|| LocalContextCandidate {
+                    path: path.to_path_buf(),
+                    signals,
+                });
         }
     }
-    repos.into_iter().collect()
+    LocalScanIndex {
+        git_roots: git_roots.into_iter().collect(),
+        contexts: contexts.into_values().collect(),
+    }
+}
+
+fn merge_local_scan_indexes(parts: Vec<LocalScanIndex>) -> LocalScanIndex {
+    let mut git_roots = BTreeSet::new();
+    let mut contexts = BTreeMap::<String, LocalContextCandidate>::new();
+    for part in parts {
+        for path in part.git_roots {
+            git_roots.insert(path);
+        }
+        for candidate in part.contexts {
+            contexts
+                .entry(normalize_path_key(&candidate.path))
+                .or_insert(candidate);
+        }
+    }
+    LocalScanIndex {
+        git_roots: git_roots.into_iter().collect(),
+        contexts: contexts.into_values().collect(),
+    }
+}
+
+fn find_git_roots(scan_roots: &[PathBuf], max_depth: usize) -> Vec<PathBuf> {
+    scan_local_filesystem(scan_roots, max_depth).git_roots
+}
+
+fn inspect_local_repos(git_roots: Vec<PathBuf>, fetch: bool) -> Vec<Value> {
+    parallel_map_limited(git_roots, local_git_worker_limit(fetch), move |path| {
+        inspect_local_repo(&path, fetch)
+    })
 }
 
 fn find_context_projects(
     scan_roots: &[PathBuf],
     max_depth: usize,
+    local_repos: &[Value],
+) -> Vec<Value> {
+    let local_scan = scan_local_filesystem(scan_roots, max_depth);
+    build_context_projects(local_scan.contexts, local_repos)
+}
+
+fn build_context_projects(
+    contexts: Vec<LocalContextCandidate>,
     local_repos: &[Value],
 ) -> Vec<Value> {
     let mut local_git_roots = Vec::<(String, Value)>::new();
@@ -2193,77 +2428,69 @@ fn find_context_projects(
     }
 
     let mut projects = BTreeMap::<String, Value>::new();
-    for root in scan_roots.iter().filter(|root| root.exists()) {
-        let walker = WalkDir::new(root)
-            .max_depth(max_depth)
-            .into_iter()
-            .filter_entry(|entry| !should_skip_entry(entry));
-        for entry in walker.flatten().filter(|entry| entry.file_type().is_dir()) {
-            let path = entry.path();
-            let signals = local_context_signals(path);
-            if signals.categories.is_empty() {
-                continue;
-            }
-            let key = normalize_path_key(path);
-            if projects.contains_key(&key) {
-                continue;
-            }
-            let local_git = nearest_local_repo(&key, &local_git_roots);
-            let nearest_git_root = local_git
-                .and_then(|(_, local)| local.get("path").and_then(Value::as_str))
-                .unwrap_or("");
-            let git_scope = match local_git {
-                Some((root_key, _)) if root_key == &key => "self",
-                Some(_) => "inside",
-                None => "none",
-            };
-            let is_git_repo = git_scope == "self";
-            let remotes = local_git
-                .and_then(|(_, local)| local.get("remotes"))
-                .cloned()
-                .unwrap_or_else(|| json!([]));
-            let remote_keys = remotes
-                .as_array()
-                .map(|items| {
-                    Value::Array(
-                        items
-                            .iter()
-                            .filter_map(|remote| remote.get("repoKey").and_then(Value::as_str))
-                            .map(Value::from)
-                            .collect(),
-                    )
-                })
-                .unwrap_or_else(|| json!([]));
-            let categories = signals.categories.clone();
-            let context_labels = signals.kinds.clone();
-            let evidence = signals.evidence.clone();
-
-            projects.insert(
-                key.clone(),
-                json!({
-                    "id": format!("local-project-{key}"),
-                    "name": path.file_name().and_then(|value| value.to_str()).unwrap_or("local-project"),
-                    "path": path.to_string_lossy().to_string(),
-                    "categories": categories.clone(),
-                    "contextKinds": categories,
-                    "contextLabels": context_labels,
-                    "evidence": evidence,
-                    "gitScope": git_scope,
-                    "isGitRepo": is_git_repo,
-                    "nearestGitRoot": nearest_git_root,
-                    "gitStatus": local_git.and_then(|(_, local)| local.get("status").and_then(Value::as_str)).unwrap_or("not-git"),
-                    "branch": local_git.and_then(|(_, local)| local.get("branch").and_then(Value::as_str)).unwrap_or(""),
-                    "dirty": local_git.and_then(|(_, local)| local.get("dirty").and_then(Value::as_bool)).unwrap_or(false),
-                    "remotes": remotes,
-                    "remoteKeys": remote_keys,
-                    "modifiedAt": path_modified_at(path),
-                }),
-            );
+    for candidate in contexts {
+        let path = candidate.path;
+        let signals = candidate.signals;
+        let key = normalize_path_key(&path);
+        if projects.contains_key(&key) {
+            continue;
         }
+        let local_git = nearest_local_repo(&key, &local_git_roots);
+        let nearest_git_root = local_git
+            .and_then(|(_, local)| local.get("path").and_then(Value::as_str))
+            .unwrap_or("");
+        let git_scope = match local_git {
+            Some((root_key, _)) if root_key == &key => "self",
+            Some(_) => "inside",
+            None => "none",
+        };
+        let is_git_repo = git_scope == "self";
+        let remotes = local_git
+            .and_then(|(_, local)| local.get("remotes"))
+            .cloned()
+            .unwrap_or_else(|| json!([]));
+        let remote_keys = remotes
+            .as_array()
+            .map(|items| {
+                Value::Array(
+                    items
+                        .iter()
+                        .filter_map(|remote| remote.get("repoKey").and_then(Value::as_str))
+                        .map(Value::from)
+                        .collect(),
+                )
+            })
+            .unwrap_or_else(|| json!([]));
+        let categories = signals.categories.clone();
+        let context_labels = signals.kinds.clone();
+        let evidence = signals.evidence.clone();
+
+        projects.insert(
+            key.clone(),
+            json!({
+                "id": format!("local-project-{key}"),
+                "name": path.file_name().and_then(|value| value.to_str()).unwrap_or("local-project"),
+                "path": path.to_string_lossy().to_string(),
+                "categories": categories.clone(),
+                "contextKinds": categories,
+                "contextLabels": context_labels,
+                "evidence": evidence,
+                "gitScope": git_scope,
+                "isGitRepo": is_git_repo,
+                "nearestGitRoot": nearest_git_root,
+                "gitStatus": local_git.and_then(|(_, local)| local.get("status").and_then(Value::as_str)).unwrap_or("not-git"),
+                "branch": local_git.and_then(|(_, local)| local.get("branch").and_then(Value::as_str)).unwrap_or(""),
+                "dirty": local_git.and_then(|(_, local)| local.get("dirty").and_then(Value::as_bool)).unwrap_or(false),
+                "remotes": remotes,
+                "remoteKeys": remote_keys,
+                "modifiedAt": path_modified_at(&path),
+            }),
+        );
     }
     projects.into_values().collect()
 }
 
+#[derive(Clone)]
 struct LocalContextSignals {
     categories: Vec<String>,
     kinds: Vec<Value>,
@@ -3393,6 +3620,23 @@ mod tests {
         }));
 
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn cached_remote_repos_reads_previous_inventory_rows() {
+        let cached = json!({
+            "rows": [
+                { "remote": { "nameWithOwner": "Harzva/RepoAtlas", "repoKey": "harzva/repoatlas" } },
+                { "remote": { "nameWithOwner": "Harzva/RepoAtlas", "repoKey": "harzva/repoatlas" } },
+                { "remote": { "nameWithOwner": "Harzva/codex-hooks", "repoKey": "harzva/codex-hooks" } }
+            ]
+        });
+
+        let repos = cached_remote_repos(Some(&cached));
+        assert_eq!(repos.len(), 2);
+        assert!(repos.iter().any(|repo| {
+            repo.get("repoKey").and_then(Value::as_str) == Some("harzva/repoatlas")
+        }));
     }
 
     #[test]
