@@ -1,17 +1,17 @@
-# RepoAtlas v0.6.3
+# RepoAtlas v0.6.4
 
-Separated local scanning from Git remote fetching.
+Clearer scan and fetch progress release.
 
 ## Highlights
 
-- `Refresh` now performs discovery and matching only. It scans GitHub repository lists, local folders, Git metadata, and context markers without running `git fetch`.
-- Added a dedicated `Fetch remotes` action for known local Git repositories. This runs `git fetch --all --prune` in bounded parallel and then updates ahead/behind/diverged/dirty status.
-- The UI now treats scan progress and fetch progress as separate operations with separate progress steps.
-- Fetching reuses the saved repository inventory, so a slow network fetch no longer blocks local repository discovery.
+- Replaced the single progress bar with two progress lanes: `Scan` and `Fetch`.
+- Fixed the confusing 88% stall by moving long waits into an explicit `Waiting` state instead of pretending the final stage is still progressing.
+- Kept `Refresh` and `Fetch remotes` visually separate so users can tell whether local scanning or remote fetching is active.
+- Added responsive stacking for the progress lanes on narrow screens.
 
 ## Why
 
-Local filesystem discovery and network synchronization have different cost and failure modes. Keeping them separate makes normal scans faster, keeps local matching useful offline, and lets users choose when they want version drift checks.
+Scan and fetch are different pipelines. A local scan can finish even when network fetch is slow, and a fetch can run later without making local discovery feel stuck.
 
 ## Regression guard
 

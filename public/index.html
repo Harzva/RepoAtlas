@@ -175,7 +175,28 @@
             </div>
             <strong id="operationPercent">0%</strong>
           </div>
-          <div class="progress-track"><span id="operationBar"></span></div>
+          <div class="operation-lanes" aria-label="Scan and fetch progress">
+            <article class="operation-lane" data-operation-lane="scan">
+              <div class="operation-lane-head">
+                <div>
+                  <strong>Scan</strong>
+                  <span id="scanOperationStatus">Idle</span>
+                </div>
+                <small id="scanOperationPercent">0%</small>
+              </div>
+              <div class="progress-track"><span id="scanOperationBar"></span></div>
+            </article>
+            <article class="operation-lane" data-operation-lane="fetch">
+              <div class="operation-lane-head">
+                <div>
+                  <strong>Fetch</strong>
+                  <span id="fetchOperationStatus">Idle</span>
+                </div>
+                <small id="fetchOperationPercent">0%</small>
+              </div>
+              <div class="progress-track"><span id="fetchOperationBar"></span></div>
+            </article>
+          </div>
           <p id="operationDetail">Starting...</p>
           <div id="operationSteps" class="operation-steps"></div>
         </section>

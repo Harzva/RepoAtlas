@@ -789,6 +789,49 @@ h3 {
   font: 900 22px/1 "Bahnschrift", "Aptos Display", sans-serif;
 }
 
+.operation-lanes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.operation-lane {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  background: color-mix(in srgb, var(--panel) 90%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  opacity: 0.72;
+}
+
+.operation-lane.active {
+  opacity: 1;
+  border-color: color-mix(in srgb, var(--teal) 44%, var(--line) 56%);
+}
+
+.operation-lane-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.operation-lane-head div {
+  display: grid;
+  gap: 3px;
+}
+
+.operation-lane-head strong,
+.operation-lane-head small {
+  font: 900 12px/1 "Cascadia Code", "Consolas", monospace;
+}
+
+.operation-lane-head span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .progress-track {
   height: 10px;
   overflow: hidden;
@@ -806,11 +849,11 @@ h3 {
   transition: width 240ms ease;
 }
 
-.operation-panel.failed .progress-track span {
+.operation-lane.failed .progress-track span {
   background: linear-gradient(90deg, var(--red), var(--amber));
 }
 
-.operation-panel.complete .progress-track span {
+.operation-lane.complete .progress-track span {
   background: linear-gradient(90deg, var(--green), var(--teal));
 }
 
@@ -1748,6 +1791,10 @@ h3 {
   .top-bar {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .operation-lanes {
+    grid-template-columns: 1fr;
   }
 
   .metrics-grid,

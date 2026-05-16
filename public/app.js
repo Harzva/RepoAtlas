@@ -84,7 +84,13 @@ const elements = {
   operationLabel: document.querySelector("#operationLabel"),
   operationTitle: document.querySelector("#operationTitle"),
   operationPercent: document.querySelector("#operationPercent"),
-  operationBar: document.querySelector("#operationBar"),
+  operationLanes: document.querySelectorAll("[data-operation-lane]"),
+  scanOperationBar: document.querySelector("#scanOperationBar"),
+  scanOperationPercent: document.querySelector("#scanOperationPercent"),
+  scanOperationStatus: document.querySelector("#scanOperationStatus"),
+  fetchOperationBar: document.querySelector("#fetchOperationBar"),
+  fetchOperationPercent: document.querySelector("#fetchOperationPercent"),
+  fetchOperationStatus: document.querySelector("#fetchOperationStatus"),
   operationDetail: document.querySelector("#operationDetail"),
   operationSteps: document.querySelector("#operationSteps"),
   metricsGrid: document.querySelector("#metricsGrid"),
@@ -111,6 +117,7 @@ const elements = {
 let toastTimer = 0;
 let operationTimer = 0;
 let operationProgress = 0;
+let activeOperationLane = "scan";
 const guideStorageKey = "repo-atlas-guide-v1";
 const ghPathStorageKey = "repo-atlas-gh-path";
 
@@ -347,7 +354,7 @@ function renderAuthAccounts(status = state.lastAuthStatus) {
 }
 
 async function checkAuthStatus({ quiet = false } = {}) {
-  if (!quiet) startOperation("GitHub status", "Checking authentication", loginSteps.slice(0, 1));
+  if (!quiet) startOperation("GitHub status", "Checking authentication", loginSteps.slice(0, 1), { lane: "scan" });
   try {
     const response = await fetch("/api/auth/status", {
       method: "POST",
@@ -368,7 +375,7 @@ async function checkAuthStatus({ quiet = false } = {}) {
 }
 
 async function loginWithGitHub({ force = false } = {}) {
-  startOperation("GitHub login", "Opening browser login", loginSteps);
+  startOperation("GitHub login", "Opening browser login", loginSteps, { lane: "scan" });
   clearError();
   elements.authLoginButton.disabled = true;
   elements.authCheckButton.disabled = true;
@@ -397,7 +404,7 @@ async function loginWithTokenAccess() {
     showToast("Paste a token first");
     return;
   }
-  startOperation("GitHub access", "Saving token with GitHub CLI", loginSteps);
+  startOperation("GitHub access", "Saving token with GitHub CLI", loginSteps, { lane: "scan" });
   clearError();
   elements.tokenLoginButton.disabled = true;
   try {
@@ -439,8 +446,53 @@ function addAccountToScan(account) {
   showToast(`Added ${clean}`);
 }
 
-function startOperation(label, title, steps) {
+function laneElements(lane) {
+  if (lane === "fetch") {
+    return {
+      bar: elements.fetchOperationBar,
+      percent: elements.fetchOperationPercent,
+      status: elements.fetchOperationStatus,
+    };
+  }
+  return {
+    bar: elements.scanOperationBar,
+    percent: elements.scanOperationPercent,
+    status: elements.scanOperationStatus,
+  };
+}
+
+function setLaneProgress(lane, value, statusText = "") {
+  const percent = Math.max(0, Math.min(100, Math.round(value)));
+  const laneEls = laneElements(lane);
+  laneEls.percent.textContent = `${percent}%`;
+  laneEls.bar.style.width = `${percent}%`;
+  if (statusText) {
+    laneEls.status.textContent = statusText;
+  }
+}
+
+function setActiveLane(lane) {
+  activeOperationLane = lane || "scan";
+  elements.operationLanes.forEach((item) => {
+    const isActive = item.dataset.operationLane === activeOperationLane;
+    item.classList.toggle("active", isActive);
+    if (isActive) item.classList.remove("complete", "failed");
+  });
+}
+
+function markActiveLane(className, statusText) {
+  elements.operationLanes.forEach((item) => {
+    if (item.dataset.operationLane === activeOperationLane) {
+      item.classList.add(className);
+      item.classList.remove(className === "complete" ? "failed" : "complete");
+    }
+  });
+  laneElements(activeOperationLane).status.textContent = statusText;
+}
+
+function startOperation(label, title, steps, options = {}) {
   window.clearInterval(operationTimer);
+  setActiveLane(options.lane || "scan");
   operationProgress = 4;
   elements.operationPanel.hidden = false;
   elements.operationPanel.classList.remove("complete", "failed");
@@ -452,8 +504,13 @@ function startOperation(label, title, steps) {
     .join("");
   setOperationProgress(4, steps);
   operationTimer = window.setInterval(() => {
-    const next = Math.min(operationProgress + Math.max(1, Math.round((88 - operationProgress) / 9)), 88);
+    const cap = 96;
+    const next = Math.min(operationProgress + Math.max(1, Math.round((cap - operationProgress) / 10)), cap);
     setOperationProgress(next, steps);
+    if (next >= cap) {
+      laneElements(activeOperationLane).status.textContent = "Waiting";
+      elements.operationDetail.textContent = "Waiting for the current operation to finish...";
+    }
   }, 520);
 }
 
@@ -461,13 +518,14 @@ function setOperationProgress(value, steps) {
   operationProgress = value;
   const percent = Math.max(0, Math.min(100, Math.round(value)));
   elements.operationPercent.textContent = `${percent}%`;
-  elements.operationBar.style.width = `${percent}%`;
+  setLaneProgress(activeOperationLane, percent);
   if (steps && steps.length) {
     const activeIndex = Math.min(steps.length - 1, Math.floor((percent / 100) * steps.length));
     elements.operationSteps.querySelectorAll("span").forEach((step, index) => {
       step.classList.toggle("active", index <= activeIndex);
     });
     elements.operationDetail.textContent = steps[activeIndex]?.[1] || elements.operationDetail.textContent;
+    laneElements(activeOperationLane).status.textContent = steps[activeIndex]?.[0] || "Working";
   }
 }
 
@@ -477,6 +535,7 @@ function completeOperation(title, detail) {
   elements.operationTitle.textContent = title;
   elements.operationDetail.textContent = detail;
   setOperationProgress(100);
+  markActiveLane("complete", "Complete");
   elements.operationSteps.querySelectorAll("span").forEach((step) => step.classList.add("active"));
 }
 
@@ -486,6 +545,7 @@ function failOperation(title, detail) {
   elements.operationTitle.textContent = title;
   elements.operationDetail.textContent = detail;
   setOperationProgress(Math.max(operationProgress, 12));
+  markActiveLane("failed", "Failed");
 }
 
 function parseScanRoots() {
@@ -1257,7 +1317,7 @@ async function refreshInventory({ automatic = false } = {}) {
   const previousTitle = elements.refreshButton.title;
   const payload = buildRefreshPayload();
 
-  startOperation("Repository scan", automatic ? "Auto-scanning empty inventory" : "Scanning repositories", scanSteps);
+  startOperation("Repository scan", automatic ? "Auto-scanning empty inventory" : "Scanning repositories", scanSteps, { lane: "scan" });
   elements.refreshButton.disabled = true;
   elements.fetchButton.disabled = true;
   elements.refreshButton.title = "Scanning";
@@ -1287,7 +1347,7 @@ async function refreshInventory({ automatic = false } = {}) {
 
 async function fetchRemotes() {
   const previousTitle = elements.fetchButton.title;
-  startOperation("Git remote fetch", "Fetching known local remotes", fetchSteps);
+  startOperation("Git remote fetch", "Fetching known local remotes", fetchSteps, { lane: "fetch" });
   elements.refreshButton.disabled = true;
   elements.fetchButton.disabled = true;
   elements.fetchButton.title = "Fetching remotes";
