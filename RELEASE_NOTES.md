@@ -1,21 +1,18 @@
-# RepoAtlas v0.6.2
+# RepoAtlas v0.6.3
 
-Parallel scan and lazy GitHub details release.
+Separated local scanning from Git remote fetching.
 
 ## Highlights
 
-- Added bounded parallel scanning for GitHub accounts, local scan roots, and local Git repository inspection.
-- Reworked local scanning to index Git roots and Agent Context markers in one filesystem pass per scan root.
-- Changed GitHub live details to load only when the user clicks `Load live details`, avoiding automatic Issues, Pull Requests, Releases, Pages, Deployments, and Packages calls while browsing the repo list.
-- Added cached remote fallback: if GitHub live loading fails because of a timeout or TLS error, RepoAtlas can reuse the last saved remote repository list and still refresh local matching.
+- `Refresh` now performs discovery and matching only. It scans GitHub repository lists, local folders, Git metadata, and context markers without running `git fetch`.
+- Added a dedicated `Fetch remotes` action for known local Git repositories. This runs `git fetch --all --prune` in bounded parallel and then updates ahead/behind/diverged/dirty status.
+- The UI now treats scan progress and fetch progress as separate operations with separate progress steps.
+- Fetching reuses the saved repository inventory, so a slow network fetch no longer blocks local repository discovery.
 
-## Tuning
+## Why
 
-- `REPO_ATLAS_REMOTE_WORKERS` controls parallel GitHub account scans.
-- `REPO_ATLAS_LOCAL_SCAN_WORKERS` controls parallel local directory walks.
-- `REPO_ATLAS_LOCAL_GIT_WORKERS` controls parallel local Git inspections.
+Local filesystem discovery and network synchronization have different cost and failure modes. Keeping them separate makes normal scans faster, keeps local matching useful offline, and lets users choose when they want version drift checks.
 
 ## Regression guard
 
-- Added tests for cached remote repository fallback.
 - CI continues to run formatting, `cargo check --locked`, `cargo test --locked`, and `node --check public/app.js`.

@@ -122,10 +122,6 @@
             <textarea id="scanRootsInput" rows="4" spellcheck="false" placeholder="C:\Users\you\Projects"></textarea>
           </label>
           <div class="scan-row">
-            <label class="toggle-row">
-              <input id="fetchToggle" type="checkbox" checked />
-              <span>Fetch remotes</span>
-            </label>
             <label class="depth-box">
               <span>Depth</span>
               <input id="maxDepthInput" type="number" min="1" max="30" step="1" value="10" />
@@ -157,6 +153,14 @@
                 />
               </svg>
               <span>Refresh</span>
+            </button>
+            <button id="fetchButton" class="refresh-button secondary" type="button" title="Fetch known local Git remotes">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M12 3a9 9 0 0 1 8.7 6.7l-1.9.6A7 7 0 0 0 5.1 8.5L7 10.4H2V5.4l1.7 1.7A9 9 0 0 1 12 3Zm10 10v5h-5l1.9-1.9A7 7 0 0 1 5.2 13.7l1.9-.6a5 5 0 0 0 9.8 1.5L15 12.8h5.3V18l-1.6-1.6A9 9 0 0 1 12 21a9 9 0 0 1-8.7-6.7l1.9-.6a7 7 0 0 0 13.7 1.8L17 13.6h5Z"
+                />
+              </svg>
+              <span>Fetch remotes</span>
             </button>
           </div>
         </header>
@@ -324,7 +328,7 @@ D:\work\repos</code>
 
           <article class="onboarding-slide" data-guide-step="3">
             <h3>4. Press Refresh</h3>
-            <p>Refresh lists remote repositories, scans local Git folders, classifies categories, and shows drift. If anything fails, the error stays visible above the metrics.</p>
+            <p>Refresh lists remote repositories, scans local Git folders, and classifies context tabs. Use Fetch remotes later when you want ahead/behind drift checks.</p>
             <div class="guide-callout">New user checklist: Git installed, GitHub CLI installed, `gh auth login` completed, optional account aliases, optional scan roots.</div>
           </article>
         </div>

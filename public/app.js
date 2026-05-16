@@ -76,7 +76,6 @@ const elements = {
   themeButtons: document.querySelector("#themeButtons"),
   sortSelect: document.querySelector("#sortSelect"),
   scanRootsInput: document.querySelector("#scanRootsInput"),
-  fetchToggle: document.querySelector("#fetchToggle"),
   maxDepthInput: document.querySelector("#maxDepthInput"),
   generatedAt: document.querySelector("#generatedAt"),
   accountChips: document.querySelector("#accountChips"),
@@ -99,6 +98,7 @@ const elements = {
   localProjectCount: document.querySelector("#localProjectCount"),
   localProjectList: document.querySelector("#localProjectList"),
   refreshButton: document.querySelector("#refreshButton"),
+  fetchButton: document.querySelector("#fetchButton"),
   guideButton: document.querySelector("#guideButton"),
   onboardingModal: document.querySelector("#onboardingModal"),
   closeGuideButton: document.querySelector("#closeGuideButton"),
@@ -117,9 +117,16 @@ const ghPathStorageKey = "repo-atlas-gh-path";
 const scanSteps = [
   ["Remote", "Loading GitHub repository lists"],
   ["Local", "Indexing local folders in parallel"],
-  ["Git", "Checking local Git state"],
+  ["Git", "Reading local Git metadata"],
   ["Compare", "Matching local and remote repositories"],
   ["Render", "Updating the atlas"],
+];
+
+const fetchSteps = [
+  ["Load", "Reading known local Git repositories"],
+  ["Fetch", "Fetching remotes in parallel"],
+  ["Compare", "Updating ahead and behind status"],
+  ["Render", "Refreshing the atlas"],
 ];
 
 const loginSteps = [
@@ -511,9 +518,6 @@ function hydrateScanControls() {
     .filter(Boolean);
   if (roots.length && !elements.scanRootsInput.value.trim()) {
     elements.scanRootsInput.value = roots.join("\n");
-  }
-  if (typeof state.summary.versionCheckUsedFetch === "boolean") {
-    elements.fetchToggle.checked = state.summary.versionCheckUsedFetch;
   }
   const accounts = asArray(state.summary.accounts)
     .map((account) => account.alias || account.login)
@@ -1221,7 +1225,6 @@ function buildRefreshPayload() {
   const roots = parseScanRoots();
   const maxDepth = Number.parseInt(elements.maxDepthInput.value, 10);
   const payload = {
-    fetch: elements.fetchToggle.checked,
     maxDepth: Number.isFinite(maxDepth) ? maxDepth : 10,
   };
   const accounts = parseAccounts();
@@ -1234,12 +1237,29 @@ function buildRefreshPayload() {
   return withGhPath(payload);
 }
 
+function applyInventoryData(data) {
+  state.summary = data.summary || {};
+  state.rows = asArray(data.rows);
+  state.localOnly = asArray(data.localOnly);
+  state.localProjects = asArray(data.localProjects);
+  const accountErrors = asArray(state.summary.accountErrors);
+  if (accountErrors.length) {
+    showError(accountErrors.map((item) => `${item.alias || "account"}: ${item.error}`).join(" | "));
+  }
+  if (!state.rows.some((repo) => repo.id === state.selectedId)) {
+    const firstLocal = state.rows.find((repo) => repo.localMatchCount > 0);
+    state.selectedId = (firstLocal || state.rows[0] || {}).id || "";
+  }
+  render();
+}
+
 async function refreshInventory({ automatic = false } = {}) {
   const previousTitle = elements.refreshButton.title;
   const payload = buildRefreshPayload();
 
   startOperation("Repository scan", automatic ? "Auto-scanning empty inventory" : "Scanning repositories", scanSteps);
   elements.refreshButton.disabled = true;
+  elements.fetchButton.disabled = true;
   elements.refreshButton.title = "Scanning";
   clearError();
   try {
@@ -1250,19 +1270,7 @@ async function refreshInventory({ automatic = false } = {}) {
     });
     const data = await response.json();
     if (!response.ok || !data.ok) throw new Error(data.error || "refresh failed");
-    state.summary = data.summary || {};
-    state.rows = asArray(data.rows);
-    state.localOnly = asArray(data.localOnly);
-    state.localProjects = asArray(data.localProjects);
-    const accountErrors = asArray(state.summary.accountErrors);
-    if (accountErrors.length) {
-      showError(accountErrors.map((item) => `${item.alias || "account"}: ${item.error}`).join(" | "));
-    }
-    if (!state.rows.some((repo) => repo.id === state.selectedId)) {
-      const firstLocal = state.rows.find((repo) => repo.localMatchCount > 0);
-      state.selectedId = (firstLocal || state.rows[0] || {}).id || "";
-    }
-    render();
+    applyInventoryData(data);
     completeOperation(
       "Scan complete",
       `${formatNumber(state.rows.length)} repositories and ${formatNumber(state.summary.unlinkedContextCount || filteredLocalProjects().length)} unlinked local contexts loaded`,
@@ -1272,12 +1280,47 @@ async function refreshInventory({ automatic = false } = {}) {
     failOperation("Scan failed", error.message);
   } finally {
     elements.refreshButton.disabled = false;
+    elements.fetchButton.disabled = false;
     elements.refreshButton.title = previousTitle;
+  }
+}
+
+async function fetchRemotes() {
+  const previousTitle = elements.fetchButton.title;
+  startOperation("Git remote fetch", "Fetching known local remotes", fetchSteps);
+  elements.refreshButton.disabled = true;
+  elements.fetchButton.disabled = true;
+  elements.fetchButton.title = "Fetching remotes";
+  clearError();
+  try {
+    const response = await fetch("/api/fetch-remotes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || "fetch remotes failed");
+    applyInventoryData(data);
+    completeOperation(
+      "Fetch complete",
+      `${formatNumber(state.summary.localRepoCount || 0)} local Git repositories refreshed`,
+    );
+  } catch (error) {
+    showError(error.message);
+    failOperation("Fetch failed", error.message);
+  } finally {
+    elements.refreshButton.disabled = false;
+    elements.fetchButton.disabled = false;
+    elements.fetchButton.title = previousTitle;
   }
 }
 
 elements.refreshButton.addEventListener("click", async () => {
   await refreshInventory();
+});
+
+elements.fetchButton.addEventListener("click", async () => {
+  await fetchRemotes();
 });
 
 elements.authLoginButton.addEventListener("click", async () => {

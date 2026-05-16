@@ -477,7 +477,7 @@ h3 {
 
 .scan-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 78px;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   align-items: stretch;
 }
@@ -690,6 +690,13 @@ h3 {
   cursor: wait;
   opacity: 0.6;
   transform: none;
+}
+
+.refresh-button.secondary {
+  color: var(--ink);
+  background: var(--panel);
+  border-color: var(--line);
+  box-shadow: 0 4px 0 rgba(17, 23, 22, 0.14);
 }
 
 .refresh-button svg {

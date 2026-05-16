@@ -220,6 +220,7 @@ fn route_request(request: HttpRequest, state: &AppState) -> HttpResponse {
         ("POST", "/api/auth/token-login") => auth_token_login_response(&request.body),
         ("POST", "/api/repo-details") => repo_details_response(&request.body),
         ("POST", "/api/refresh") => refresh_response(&request.body, state),
+        ("POST", "/api/fetch-remotes") => fetch_remotes_response(state),
         ("POST", "/api/open-local") => open_local_response(&request.body, state),
         ("GET", path) if path.starts_with("/reports/") => report_response(path, state),
         ("GET", path) => static_response(path),
@@ -762,10 +763,7 @@ fn refresh_response(body: &[u8], state: &AppState) -> HttpResponse {
     let payload: Value = serde_json::from_slice(body).unwrap_or_else(|_| json!({}));
     apply_gh_path(&payload);
     let accounts = request_accounts(&payload);
-    let fetch = payload
-        .get("fetch")
-        .and_then(Value::as_bool)
-        .unwrap_or_else(default_fetch);
+    let fetch = false;
     let max_depth = payload
         .get("maxDepth")
         .and_then(Value::as_u64)
@@ -785,6 +783,25 @@ fn refresh_response(body: &[u8], state: &AppState) -> HttpResponse {
         write_inventory(&state.inventory_path, &inventory)?;
         Ok(inventory)
     }) {
+        Ok(inventory) => {
+            let mut value = flatten_inventory(&inventory);
+            value
+                .as_object_mut()
+                .unwrap()
+                .insert("ok".into(), Value::Bool(true));
+            json_response(200, value)
+        }
+        Err(error) => json_response(500, json!({ "ok": false, "error": error.to_string() })),
+    }
+}
+
+fn fetch_remotes_response(state: &AppState) -> HttpResponse {
+    match read_inventory(&state.inventory_path)
+        .and_then(|inventory| fetch_remote_inventory(&inventory))
+        .and_then(|inventory| {
+            write_inventory(&state.inventory_path, &inventory)?;
+            Ok(inventory)
+        }) {
         Ok(inventory) => {
             let mut value = flatten_inventory(&inventory);
             value
@@ -1387,6 +1404,8 @@ fn flatten_inventory(inventory: &Value) -> Value {
             "accountAlias": inventory.get("accountAlias").and_then(Value::as_str).unwrap_or(""),
             "accountLogin": inventory.get("accountLogin").and_then(Value::as_str).unwrap_or(""),
             "versionCheckUsedFetch": inventory.get("versionCheckUsedFetch").cloned().unwrap_or(Value::Null),
+            "lastFetchAt": inventory.get("lastFetchAt").and_then(Value::as_str).unwrap_or(""),
+            "remoteSource": inventory.get("remoteSource").and_then(Value::as_str).unwrap_or(""),
         },
         "rows": rows,
         "localOnly": local_only,
@@ -1868,14 +1887,6 @@ fn default_max_depth() -> usize {
         .unwrap_or(DEFAULT_MAX_DEPTH)
 }
 
-fn default_fetch() -> bool {
-    let raw = env::var("REPO_ATLAS_NO_FETCH").unwrap_or_default();
-    !matches!(
-        raw.trim().to_ascii_lowercase().as_str(),
-        "1" | "true" | "yes"
-    )
-}
-
 fn worker_limit(env_name: &str, default: usize) -> usize {
     let requested = env::var(env_name)
         .ok()
@@ -2108,6 +2119,97 @@ fn cached_accounts(cached_inventory: Option<&Value>) -> Vec<Value> {
         .and_then(|inventory| inventory.get("accounts").and_then(Value::as_array))
         .cloned()
         .unwrap_or_default()
+}
+
+fn fetch_remote_inventory(inventory: &Value) -> Result<Value> {
+    let remote_repos = cached_remote_repos(Some(inventory));
+    if remote_repos.is_empty() {
+        return Err(anyhow!("Run Refresh once before fetching local remotes."));
+    }
+
+    let local_paths = cached_local_repo_paths(inventory);
+    if local_paths.is_empty() {
+        return Err(anyhow!("No local Git repositories are available to fetch."));
+    }
+
+    let local_repos = inspect_local_repos(local_paths, true);
+    let local_projects = cached_local_projects(inventory);
+    let mut next = merge_inventory(remote_repos, local_repos, local_projects);
+    carry_inventory_metadata(inventory, &mut next);
+    let object = next.as_object_mut().unwrap();
+    object.insert("versionCheckUsedFetch".into(), Value::Bool(true));
+    object.insert(
+        "lastFetchAt".into(),
+        Value::from(chrono::Utc::now().to_rfc3339()),
+    );
+    object.insert("remoteSource".into(), Value::from("cached"));
+    object.insert("accountErrors".into(), json!([]));
+    Ok(next)
+}
+
+fn cached_local_repo_paths(inventory: &Value) -> Vec<PathBuf> {
+    let mut seen = BTreeSet::new();
+    let mut paths = Vec::new();
+    for row in inventory
+        .get("rows")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+    {
+        if let Some(matches) = row.get("localMatches").and_then(Value::as_array) {
+            for local in matches {
+                push_cached_local_path(local, &mut seen, &mut paths);
+            }
+        }
+    }
+    for local in inventory
+        .get("localOnly")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+    {
+        push_cached_local_path(local, &mut seen, &mut paths);
+    }
+    paths
+}
+
+fn push_cached_local_path(local: &Value, seen: &mut BTreeSet<String>, paths: &mut Vec<PathBuf>) {
+    let Some(path) = local.get("path").and_then(Value::as_str) else {
+        return;
+    };
+    let path = PathBuf::from(path);
+    if !path.exists() {
+        return;
+    }
+    let key = normalize_path_key(&path);
+    if seen.insert(key) {
+        paths.push(path);
+    }
+}
+
+fn cached_local_projects(inventory: &Value) -> Vec<Value> {
+    inventory
+        .get("localProjects")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+}
+
+fn carry_inventory_metadata(source: &Value, target: &mut Value) {
+    let Some(object) = target.as_object_mut() else {
+        return;
+    };
+    for key in [
+        "accounts",
+        "accountAlias",
+        "accountLogin",
+        "scanRoots",
+        "remoteSource",
+    ] {
+        if let Some(value) = source.get(key) {
+            object.insert(key.to_string(), value.clone());
+        }
+    }
 }
 
 fn list_remote_repos(account: &str) -> Result<Vec<Value>> {
@@ -3637,6 +3739,37 @@ mod tests {
         assert!(repos.iter().any(|repo| {
             repo.get("repoKey").and_then(Value::as_str) == Some("harzva/repoatlas")
         }));
+    }
+
+    #[test]
+    fn cached_local_repo_paths_collects_known_repositories() {
+        let root = temp_test_dir("cached-local-paths");
+        let matched = root.join("matched");
+        let local_only = root.join("local-only");
+        fs::create_dir_all(&matched).expect("create matched repo path");
+        fs::create_dir_all(&local_only).expect("create local only repo path");
+        let cached = json!({
+            "rows": [
+                { "localMatches": [
+                    { "path": matched.to_string_lossy().to_string() },
+                    { "path": matched.to_string_lossy().to_string() }
+                ] }
+            ],
+            "localOnly": [
+                { "path": local_only.to_string_lossy().to_string() }
+            ]
+        });
+
+        let paths = cached_local_repo_paths(&cached);
+        assert_eq!(paths.len(), 2);
+        assert!(paths
+            .iter()
+            .any(|path| normalize_path_key(path) == normalize_path_key(&matched)));
+        assert!(paths
+            .iter()
+            .any(|path| normalize_path_key(path) == normalize_path_key(&local_only)));
+
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]
