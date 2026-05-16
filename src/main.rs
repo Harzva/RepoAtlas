@@ -882,7 +882,36 @@ fn merge_scan_roots(primary: Vec<PathBuf>, fallback: Vec<PathBuf>) -> Vec<PathBu
             roots.push(root);
         }
     }
-    roots
+    prune_nested_scan_roots(roots)
+}
+
+fn prune_nested_scan_roots(roots: Vec<PathBuf>) -> Vec<PathBuf> {
+    let mut items = roots
+        .into_iter()
+        .map(|root| (scan_root_key(&root), root))
+        .collect::<Vec<_>>();
+    items.sort_by(|(left, _), (right, _)| left.len().cmp(&right.len()).then(left.cmp(right)));
+
+    let mut kept_keys = Vec::<String>::new();
+    let mut kept_roots = Vec::<PathBuf>::new();
+    for (key, root) in items {
+        if kept_keys
+            .iter()
+            .any(|parent| key == *parent || key.starts_with(&format!("{parent}\\")))
+        {
+            continue;
+        }
+        kept_keys.push(key);
+        kept_roots.push(root);
+    }
+    kept_roots
+}
+
+fn scan_root_key(path: &Path) -> String {
+    normalize_path_key(path)
+        .replace('/', "\\")
+        .trim_end_matches('\\')
+        .to_string()
 }
 
 fn normalize_account_name(value: &str) -> Option<String> {
@@ -2435,16 +2464,89 @@ struct LocalScanIndex {
     contexts: Vec<LocalContextCandidate>,
 }
 
+#[derive(Clone)]
+struct LocalScanTask {
+    root: PathBuf,
+    max_depth: usize,
+}
+
 fn scan_local_filesystem(scan_roots: &[PathBuf], max_depth: usize) -> LocalScanIndex {
-    let roots = scan_roots
+    let tasks = scan_roots
         .iter()
-        .filter(|root| root.exists())
-        .cloned()
+        .filter(|root| root.exists() && root.is_dir())
+        .flat_map(|root| split_scan_tasks(root, max_depth))
         .collect::<Vec<_>>();
-    let parts = parallel_map_limited(roots, local_scan_worker_limit(), |root| {
-        scan_local_root(&root, max_depth)
+    let parts = parallel_map_limited(tasks, local_scan_worker_limit(), |task| {
+        scan_local_root(&task.root, task.max_depth)
     });
     merge_local_scan_indexes(parts)
+}
+
+fn split_scan_tasks(root: &Path, max_depth: usize) -> Vec<LocalScanTask> {
+    let target_count = local_scan_worker_limit().saturating_mul(2).max(1);
+    let mut tasks = Vec::new();
+    split_scan_task_recursive(root, max_depth, target_count, &mut tasks);
+    tasks
+}
+
+fn split_scan_task_recursive(
+    root: &Path,
+    max_depth: usize,
+    target_count: usize,
+    tasks: &mut Vec<LocalScanTask>,
+) {
+    if max_depth == 0 {
+        tasks.push(LocalScanTask {
+            root: root.to_path_buf(),
+            max_depth,
+        });
+        return;
+    }
+
+    let children = scan_task_children(root);
+    if children.is_empty() || tasks.len() >= target_count {
+        tasks.push(LocalScanTask {
+            root: root.to_path_buf(),
+            max_depth,
+        });
+        return;
+    }
+
+    tasks.push(LocalScanTask {
+        root: root.to_path_buf(),
+        max_depth: 0,
+    });
+    if tasks.len() + children.len() >= target_count {
+        tasks.extend(children.into_iter().map(|child| LocalScanTask {
+            root: child,
+            max_depth: max_depth.saturating_sub(1),
+        }));
+        return;
+    }
+
+    for child in children {
+        split_scan_task_recursive(&child, max_depth.saturating_sub(1), target_count, tasks);
+    }
+}
+
+fn scan_task_children(root: &Path) -> Vec<PathBuf> {
+    let Ok(entries) = fs::read_dir(root) else {
+        return Vec::new();
+    };
+    entries
+        .flatten()
+        .filter_map(|entry| {
+            let file_type = entry.file_type().ok()?;
+            if !file_type.is_dir() {
+                return None;
+            }
+            let name = entry.file_name().to_string_lossy().to_string();
+            if should_skip_name(&name) {
+                return None;
+            }
+            Some(entry.path())
+        })
+        .collect()
 }
 
 fn scan_local_root(root: &Path, max_depth: usize) -> LocalScanIndex {
@@ -2457,10 +2559,7 @@ fn scan_local_root(root: &Path, max_depth: usize) -> LocalScanIndex {
     for entry in walker.flatten().filter(|entry| entry.file_type().is_dir()) {
         let path = entry.path();
         if path.join(".git").exists() {
-            let top = git_output(path, &["rev-parse", "--show-toplevel"])
-                .map(PathBuf::from)
-                .unwrap_or_else(|| path.to_path_buf());
-            git_roots.insert(top);
+            git_roots.insert(path.to_path_buf());
         }
 
         let signals = local_context_signals(path);
@@ -2832,9 +2931,12 @@ fn should_skip_entry(entry: &DirEntry) -> bool {
     if entry.depth() == 0 {
         return false;
     }
-    let name = entry.file_name().to_string_lossy();
+    should_skip_name(&entry.file_name().to_string_lossy())
+}
+
+fn should_skip_name(name: &str) -> bool {
     matches!(
-        name.as_ref(),
+        name,
         ".git"
             | ".hg"
             | ".svn"
@@ -2852,12 +2954,14 @@ fn should_skip_entry(entry: &DirEntry) -> bool {
 }
 
 fn inspect_local_repo(repo_path: &Path, fetch: bool) -> Value {
+    if !fetch {
+        return inspect_local_repo_fast(repo_path);
+    }
+
     let mut status = "unknown".to_string();
     let mut error = Value::Null;
 
-    if fetch {
-        let _ = run_git(&["fetch", "--all", "--prune", "--quiet"], Some(repo_path));
-    }
+    let _ = run_git(&["fetch", "--all", "--prune", "--quiet"], Some(repo_path));
 
     let branch = git_output(repo_path, &["branch", "--show-current"]);
     let head = git_output(repo_path, &["rev-parse", "HEAD"]);
@@ -2917,6 +3021,22 @@ fn inspect_local_repo(repo_path: &Path, fetch: bool) -> Value {
     })
 }
 
+fn inspect_local_repo_fast(repo_path: &Path) -> Value {
+    json!({
+        "path": repo_path.to_string_lossy(),
+        "branch": read_git_head_branch(repo_path),
+        "head": Value::Null,
+        "remotes": parse_remotes_fast(repo_path),
+        "upstream": Value::Null,
+        "upstreamSha": Value::Null,
+        "ahead": Value::Null,
+        "behind": Value::Null,
+        "dirty": false,
+        "status": "local",
+        "error": Value::Null,
+    })
+}
+
 fn parse_remotes(repo_path: &Path) -> Vec<Value> {
     let mut seen = BTreeSet::new();
     let mut remotes = Vec::new();
@@ -2927,6 +3047,32 @@ fn parse_remotes(repo_path: &Path) -> Vec<Value> {
         parse_git_config_remotes(repo_path, &mut seen, &mut remotes);
     }
     remotes
+}
+
+fn parse_remotes_fast(repo_path: &Path) -> Vec<Value> {
+    let mut seen = BTreeSet::new();
+    let mut remotes = Vec::new();
+    parse_git_config_remotes(repo_path, &mut seen, &mut remotes);
+    if remotes.is_empty() {
+        parse_remotes(repo_path)
+    } else {
+        remotes
+    }
+}
+
+fn read_git_head_branch(repo_path: &Path) -> Option<String> {
+    let git_dir = git_metadata_dir(repo_path)?;
+    let head = fs::read_to_string(git_dir.join("HEAD")).ok()?;
+    let head = head.trim();
+    head.strip_prefix("ref: refs/heads/")
+        .map(str::to_string)
+        .or_else(|| {
+            if head.is_empty() {
+                None
+            } else {
+                Some("detached".to_string())
+            }
+        })
 }
 
 fn parse_git_remote_output(text: &str, seen: &mut BTreeSet<String>, remotes: &mut Vec<Value>) {
@@ -3902,11 +4048,32 @@ mod tests {
             vec![
                 PathBuf::from("D:\\study\\code"),
                 PathBuf::from("D:\\study\\code\\0ai\\产品"),
+                PathBuf::from("D:\\other\\repos"),
             ],
         );
         assert_eq!(roots.len(), 2);
         assert_eq!(roots[0], PathBuf::from("D:\\study\\code"));
-        assert_eq!(roots[1], PathBuf::from("D:\\study\\code\\0ai\\产品"));
+        assert_eq!(roots[1], PathBuf::from("D:\\other\\repos"));
+    }
+
+    #[test]
+    fn split_scan_tasks_parallelizes_large_root_without_skipping_root() {
+        let root = temp_test_dir("split-scan-tasks");
+        let child = root.join("child");
+        let skipped = root.join("node_modules");
+        fs::create_dir_all(&child).expect("create child");
+        fs::create_dir_all(&skipped).expect("create skipped child");
+
+        let tasks = split_scan_tasks(&root, 3);
+        assert!(tasks
+            .iter()
+            .any(|task| task.root == root && task.max_depth == 0));
+        assert!(tasks
+            .iter()
+            .any(|task| task.root == child && task.max_depth == 2));
+        assert!(!tasks.iter().any(|task| task.root == skipped));
+
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]

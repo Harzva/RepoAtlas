@@ -810,6 +810,10 @@ h3 {
   border-color: color-mix(in srgb, var(--teal) 44%, var(--line) 56%);
 }
 
+.operation-lane.waiting {
+  opacity: 1;
+}
+
 .operation-lane-head {
   display: flex;
   align-items: flex-start;
@@ -849,12 +853,28 @@ h3 {
   transition: width 240ms ease;
 }
 
+.operation-lane.waiting .progress-track span {
+  background: linear-gradient(90deg, var(--teal), var(--accent), var(--teal));
+  background-size: 220% 100%;
+  animation: progress-waiting 1.2s linear infinite;
+}
+
 .operation-lane.failed .progress-track span {
   background: linear-gradient(90deg, var(--red), var(--amber));
 }
 
 .operation-lane.complete .progress-track span {
   background: linear-gradient(90deg, var(--green), var(--teal));
+}
+
+@keyframes progress-waiting {
+  from {
+    background-position: 0 0;
+  }
+
+  to {
+    background-position: 220% 0;
+  }
 }
 
 #operationDetail {

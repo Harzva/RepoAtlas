@@ -22,6 +22,7 @@ const labels = {
   "no-local-copy": "Missing local",
   "no-upstream": "No upstream",
   "not-git": "No Git",
+  local: "Local",
   diverged: "Diverged",
   behind: "Behind",
   ahead: "Ahead",
@@ -471,12 +472,36 @@ function setLaneProgress(lane, value, statusText = "") {
   }
 }
 
+function resetLane(lane, statusText) {
+  const laneEls = laneElements(lane);
+  laneEls.percent.textContent = "--";
+  laneEls.status.textContent = statusText;
+  laneEls.bar.style.width = "0%";
+  elements.operationLanes.forEach((item) => {
+    if (item.dataset.operationLane === lane) item.classList.remove("active", "complete", "failed", "waiting");
+  });
+}
+
+function resetInactiveLanes(activeLane) {
+  if (activeLane !== "scan") resetLane("scan", "Idle");
+  if (activeLane !== "fetch") resetLane("fetch", "Not running");
+}
+
+function setLaneWaiting(lane) {
+  const laneEls = laneElements(lane);
+  laneEls.percent.textContent = "Working";
+  laneEls.status.textContent = "Waiting";
+  elements.operationLanes.forEach((item) => {
+    if (item.dataset.operationLane === lane) item.classList.add("waiting");
+  });
+}
+
 function setActiveLane(lane) {
   activeOperationLane = lane || "scan";
   elements.operationLanes.forEach((item) => {
     const isActive = item.dataset.operationLane === activeOperationLane;
     item.classList.toggle("active", isActive);
-    if (isActive) item.classList.remove("complete", "failed");
+    if (isActive) item.classList.remove("complete", "failed", "waiting");
   });
 }
 
@@ -484,7 +509,7 @@ function markActiveLane(className, statusText) {
   elements.operationLanes.forEach((item) => {
     if (item.dataset.operationLane === activeOperationLane) {
       item.classList.add(className);
-      item.classList.remove(className === "complete" ? "failed" : "complete");
+      item.classList.remove(className === "complete" ? "failed" : "complete", "waiting");
     }
   });
   laneElements(activeOperationLane).status.textContent = statusText;
@@ -493,6 +518,7 @@ function markActiveLane(className, statusText) {
 function startOperation(label, title, steps, options = {}) {
   window.clearInterval(operationTimer);
   setActiveLane(options.lane || "scan");
+  resetInactiveLanes(activeOperationLane);
   operationProgress = 4;
   elements.operationPanel.hidden = false;
   elements.operationPanel.classList.remove("complete", "failed");
@@ -504,11 +530,12 @@ function startOperation(label, title, steps, options = {}) {
     .join("");
   setOperationProgress(4, steps);
   operationTimer = window.setInterval(() => {
-    const cap = 96;
+    const cap = 94;
     const next = Math.min(operationProgress + Math.max(1, Math.round((cap - operationProgress) / 10)), cap);
     setOperationProgress(next, steps);
     if (next >= cap) {
-      laneElements(activeOperationLane).status.textContent = "Waiting";
+      setLaneWaiting(activeOperationLane);
+      elements.operationPercent.textContent = "Working";
       elements.operationDetail.textContent = "Waiting for the current operation to finish...";
     }
   }, 520);
@@ -534,6 +561,7 @@ function completeOperation(title, detail) {
   elements.operationPanel.classList.add("complete");
   elements.operationTitle.textContent = title;
   elements.operationDetail.textContent = detail;
+  elements.operationPercent.textContent = "100%";
   setOperationProgress(100);
   markActiveLane("complete", "Complete");
   elements.operationSteps.querySelectorAll("span").forEach((step) => step.classList.add("active"));
