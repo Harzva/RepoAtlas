@@ -722,7 +722,7 @@ function renderMatched() {
 
   elements.matchedList.innerHTML = matched
     .map((repo) => {
-      const firstPath = asArray(repo.localPaths)[0] || "";
+      const firstPath = primaryLocalPath(repo);
       const statusText = asArray(repo.localStatusList).map(statusLabel).join(" / ");
       return `
         <article class="matched-card">
@@ -732,13 +732,17 @@ function renderMatched() {
           </button>
           ${
             firstPath
-              ? `<button class="icon-button" type="button" data-open-path="${escapeHtml(firstPath)}" title="Open ${escapeHtml(baseName(firstPath))}" aria-label="Open local folder">${icons.folder}</button>`
+              ? `<button class="icon-button" type="button" data-open-path="${escapeHtml(firstPath)}" title="Open ${escapeHtml(firstPath)}" aria-label="Open local folder">${icons.folder}</button>`
               : ""
           }
         </article>
       `;
     })
     .join("");
+}
+
+function primaryLocalPath(repo) {
+  return asArray(repo.localMatches).find((match) => match && match.path)?.path || asArray(repo.localPaths)[0] || "";
 }
 
 function filteredRows() {
@@ -1050,7 +1054,7 @@ function renderDetails() {
   const statuses = asArray(repo.localStatusList);
   const statusBadges = statuses.length ? statuses.map(statusBadge).join(" ") : statusBadge(repo.localStatus);
   const localMatches = asArray(repo.localMatches);
-  const localPaths = asArray(repo.localPaths);
+  const mainLocalPath = primaryLocalPath(repo);
   const pathList = localMatches.length
     ? localMatches
         .map((match) => {
@@ -1088,13 +1092,13 @@ function renderDetails() {
       <a class="action-button" href="${escapeHtml(repo.url)}" target="_blank" rel="noreferrer">${icons.external}<span>GitHub</span></a>
       <button class="action-button" type="button" data-copy="${escapeHtml(repo.cloneUrl)}">${icons.git}<span>Clone URL</span></button>
       ${
-        localPaths[0]
-          ? `<button class="action-button" type="button" data-open-path="${escapeHtml(localPaths[0])}">${icons.folder}<span>Folder</span></button>`
+        mainLocalPath
+          ? `<button class="action-button" type="button" data-open-path="${escapeHtml(mainLocalPath)}">${icons.folder}<span>Folder</span></button>`
           : ""
       }
       ${
-        localPaths[0]
-          ? `<button class="action-button" type="button" data-copy="${escapeHtml(localPaths[0])}">${icons.copy}<span>Path</span></button>`
+        mainLocalPath
+          ? `<button class="action-button" type="button" data-copy="${escapeHtml(mainLocalPath)}">${icons.copy}<span>Path</span></button>`
           : ""
       }
     </div>
