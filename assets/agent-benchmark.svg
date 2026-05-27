@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="660" viewBox="0 0 1200 660" role="img" aria-label="RepoAtlas agent lookup benchmark">
+  <defs>
+    <linearGradient id="panel" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#f7fbf8"/>
+      <stop offset="1" stop-color="#eef5f2"/>
+    </linearGradient>
+    <style>
+      text { font-family: "Segoe UI", Arial, sans-serif; fill: #101716; }
+      .mono { font-family: Consolas, "SFMono-Regular", monospace; }
+      .muted { fill: #60706a; }
+      .title { font-size: 34px; font-weight: 800; }
+      .subtitle { font-size: 18px; }
+      .label { font-size: 16px; font-weight: 700; }
+      .value { font-size: 28px; font-weight: 800; }
+      .small { font-size: 14px; }
+      .card { fill: #ffffff; stroke: #d7e4df; stroke-width: 1.5; }
+      .barBase { fill: #e4ece8; }
+      .barTraditional { fill: #245b9f; }
+      .barMcp { fill: #0b7f77; }
+      .accent { fill: #0b7f77; }
+      .warn { fill: #a46100; }
+    </style>
+  </defs>
+  <rect width="1200" height="660" rx="28" fill="url(#panel)"/>
+
+  <text x="64" y="72" class="title">RepoAtlas Agent Lookup Benchmark</text>
+  <text x="64" y="106" class="subtitle muted">Human-facing desktop atlas plus agent-facing MCP and Codex skill.</text>
+
+  <rect x="64" y="144" width="500" height="190" rx="12" class="card"/>
+  <text x="94" y="186" class="label">Traditional full repo cartography</text>
+  <text x="94" y="226" class="value">87.470s</text>
+  <text x="94" y="258" class="small muted">Remote scan + local discovery + local repo inspection</text>
+  <rect x="94" y="286" width="410" height="18" rx="9" class="barBase"/>
+  <rect x="94" y="286" width="410" height="18" rx="9" class="barTraditional"/>
+
+  <rect x="636" y="144" width="500" height="190" rx="12" class="card"/>
+  <text x="666" y="186" class="label">RepoAtlas MCP focused lookup</text>
+  <text x="666" y="226" class="value">0.097s</text>
+  <text x="666" y="258" class="small muted">Median lookup for Harzva/RepoAtlas over 7 runs</text>
+  <rect x="666" y="286" width="410" height="18" rx="9" class="barBase"/>
+  <rect x="666" y="286" width="2" height="18" rx="1" class="barMcp"/>
+
+  <rect x="64" y="370" width="326" height="170" rx="12" class="card"/>
+  <text x="94" y="412" class="label">Speedup</text>
+  <text x="94" y="456" class="value accent">900.8x</text>
+  <text x="94" y="488" class="small muted">Full scan vs repeated focused MCP lookup</text>
+
+  <rect x="437" y="370" width="326" height="170" rx="12" class="card"/>
+  <text x="467" y="412" class="label">Token footprint</text>
+  <text x="467" y="456" class="value accent">216</text>
+  <text x="467" y="488" class="small muted">Estimated MCP response tokens</text>
+  <text x="467" y="516" class="small muted">Raw JSON estimate: 54,612 tokens</text>
+
+  <rect x="810" y="370" width="326" height="170" rx="12" class="card"/>
+  <text x="840" y="412" class="label">Output reduction</text>
+  <text x="840" y="456" class="value accent">250.6x</text>
+  <text x="840" y="488" class="small muted">Raw JSON bytes vs focused MCP response</text>
+
+  <text x="64" y="594" class="mono small muted">Lab run: 158 remote repos, 168 local Git repos, 69 local matches, 89 missing local copies, --no-fetch.</text>
+  <text x="64" y="620" class="mono small muted">Token estimates use a simple 4 chars/token planning heuristic; actual tokenizer counts vary by model.</text>
+</svg>

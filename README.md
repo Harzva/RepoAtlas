@@ -4,7 +4,7 @@
 
 # RepoAtlas
 
-**A Rust desktop atlas for managing multiple GitHub accounts, local Git checkouts, sync drift, and repository context tags.**
+**A Rust desktop atlas for humans, and a fast repository context layer for agents.**
 
 [![Release](https://img.shields.io/github/v/release/Harzva/RepoAtlas?label=release)](https://github.com/Harzva/RepoAtlas/releases/latest)
 [![CI](https://github.com/Harzva/RepoAtlas/actions/workflows/ci.yml/badge.svg)](https://github.com/Harzva/RepoAtlas/actions/workflows/ci.yml)
@@ -16,6 +16,7 @@
 [Download](https://github.com/Harzva/RepoAtlas/releases/latest) |
 [Website](https://harzva.github.io/RepoAtlas/) |
 [Install Guide](https://harzva.github.io/RepoAtlas/#install-guide) |
+[Agent Tools](#agent-tools) |
 [Plugin TODO](https://harzva.github.io/RepoAtlas/#codex-plugin-roadmap) |
 [Quick Start](#quick-start) |
 [Workflow](#workflow)
@@ -27,6 +28,13 @@
 ## Why RepoAtlas
 
 GitHub becomes a real context layer only when remote repositories, local folders, account boundaries, and project context tabs are visible in one place. RepoAtlas connects those layers so you can see what exists online, what is cloned locally, what has drifted, and which repositories belong to contexts such as Agents, Memory, Skills, MCP, Workflow, Rules, and Hooks.
+
+RepoAtlas now ships as two products from the same repository:
+
+| Surface | Audience | What it does |
+|---|---|---|
+| Desktop app / release exe | Humans | Explore accounts, local checkouts, drift, context tags, GitHub details, and exportable reports in a WebView dashboard. |
+| MCP server + Codex skill | Agents | Answer focused repository questions from the same inventory without loading full Markdown or JSON reports into context. |
 
 ## Highlights
 
@@ -43,6 +51,7 @@ GitHub becomes a real context layer only when remote repositories, local folders
 | GitHub live details | Open a repository card to see Issues, Pull Requests, Releases, Pages, Deployments, and Packages with links back to GitHub. |
 | Progress feedback | Scan and login operations show visible progress steps instead of a completion-only toast. |
 | Portable reports | Export live JSON, CSV, and Markdown reports from the local app. |
+| Agent tools | Bundle a Codex skill and stdio MCP server so agents can query repo-to-local mappings without reading full reports. |
 | Cross-platform releases | GitHub Actions builds Windows exe and macOS tar.gz assets. |
 
 ## Quick Start
@@ -121,6 +130,75 @@ Build a release binary:
 cargo build --release
 ```
 
+## Agent Tools
+
+RepoAtlas includes agent-facing tools under `agent-tools/`:
+
+| Tool | Use it for |
+|---|---|
+| `agent-tools/mcp/repoatlas_mcp_server.py` | Register a stdio MCP server that answers focused repository lookup questions. |
+| `agent-tools/repoatlas-repo-map/` | Install a Codex skill that explains the RepoAtlas repo-map workflow and MCP usage. |
+| `agent-tools/benchmarks/repoatlas_benchmark.py` | Compare traditional `gh-repo-cartographer` scanning against focused MCP lookup time and token footprint. |
+| `agent-tools/README.md` | Copy-ready install snippets and example prompts for agent users. |
+
+Register the MCP server in Codex:
+
+```toml
+[mcp_servers.repoatlas]
+command = "python"
+args = [
+  "C:\\path\\to\\RepoAtlas\\agent-tools\\mcp\\repoatlas_mcp_server.py",
+  "--inventory",
+  "C:\\path\\to\\repo-atlas.json",
+]
+startup_timeout_sec = 30
+```
+
+Then ask the agent:
+
+```text
+Find local paths for Harzva/RepoAtlas.
+List repositories missing local copies.
+Show dirty, ahead, behind, diverged, or no-upstream repositories.
+```
+
+Why MCP instead of only a skill: the skill teaches the workflow, while MCP returns small structured answers from the inventory. This saves context tokens and makes repeated repo lookup faster.
+
+### Benchmark
+
+The benchmark below compares a traditional full `gh-repo-cartographer` pass with a focused RepoAtlas MCP lookup over the generated inventory.
+
+<img src="assets/agent-benchmark.svg" alt="RepoAtlas MCP lookup benchmark showing 900.8x faster focused lookup and 250.6x smaller response" width="920" />
+
+Benchmark command core parameters:
+
+```powershell
+--scan-root "<workspace-root>" --no-fetch --query "Harzva/RepoAtlas" --repeat-mcp 7
+```
+
+The measured lab run used one Windows workspace root containing the local repository collection.
+
+| Metric | Result |
+|---|---:|
+| Remote repositories | 158 |
+| Local Git repositories | 168 |
+| Local matches | 69 |
+| Missing local copies | 89 |
+| Traditional full scan | 87.470s |
+| Remote scan phase | 13.373s |
+| Local Git discovery phase | 14.014s |
+| Local repo inspection phase | 59.933s |
+| RepoAtlas MCP lookup median | 0.097s |
+| Focused lookup speedup | 900.8x |
+
+| Output | Estimated tokens |
+|---|---:|
+| Traditional Markdown report | 8,920 |
+| Traditional raw JSON inventory | 54,612 |
+| MCP focused response | 216 |
+
+The raw JSON inventory is about 250.6x larger than the focused MCP response for this lookup. The local benchmark output is intentionally ignored by Git because it contains machine-specific local paths; rerun `agent-tools/benchmarks/repoatlas_benchmark.py` to reproduce the report.
+
 ## Workflow
 
 ```mermaid
@@ -171,6 +249,7 @@ RepoAtlas ships with automatic context inference so a repository collection can 
 |-- src/main.rs                # WebView shell, local API, scanner
 |-- public/                    # Embedded dashboard UI
 |-- data/seed-inventory.json   # Empty seed inventory for first launch
+|-- agent-tools/               # Codex skill and MCP server for agent lookup
 |-- docs/                      # GitHub Pages site
 |-- assets/                    # README visuals
 `-- .github/workflows/         # CI, Release, and Pages automation

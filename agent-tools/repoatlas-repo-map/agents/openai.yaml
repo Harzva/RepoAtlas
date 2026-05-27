@@ -1,0 +1,7 @@
+interface:
+  display_name: "RepoAtlas Repo Map"
+  short_description: "Query RepoAtlas repo-to-local mappings."
+  default_prompt: "Use $repoatlas-repo-map to find whether a GitHub repository exists locally and return its local path."
+
+policy:
+  allow_implicit_invocation: true
