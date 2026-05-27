@@ -16,7 +16,7 @@
 [Download](https://github.com/Harzva/RepoAtlas/releases/latest) |
 [Website](https://harzva.github.io/RepoAtlas/) |
 [Install Guide](https://harzva.github.io/RepoAtlas/#install-guide) |
-[Demo Video](#demo-video) |
+[Demo Video](https://harzva.github.io/RepoAtlas/#demo-video) |
 [Agent Tools](#agent-tools) |
 [Plugin TODO](https://harzva.github.io/RepoAtlas/#codex-plugin-roadmap) |
 [Quick Start](#quick-start) |
@@ -28,9 +28,11 @@
 
 ## Demo Video
 
-<video src="assets/repoatlas-promo.mp4" controls width="920"></video>
+GitHub README may not render repository-relative `<video>` tags, so the canonical online player lives on GitHub Pages:
 
-[Open the promo video](assets/repoatlas-promo.mp4) if your Markdown viewer does not render inline video.
+[Watch the RepoAtlas demo video](https://harzva.github.io/RepoAtlas/#demo-video)
+
+[Open the raw MP4](assets/repoatlas-promo.mp4) if you want the repository asset directly.
 
 ## Why RepoAtlas
 

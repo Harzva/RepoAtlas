@@ -255,6 +255,42 @@
         box-shadow: 0 24px 70px rgba(17, 23, 22, 0.18);
       }
 
+      .demo-video {
+        display: block;
+        width: 100%;
+        margin-top: 18px;
+        background: #0e1413;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        box-shadow: 0 24px 70px rgba(17, 23, 22, 0.18);
+      }
+
+      .demo-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 18px;
+      }
+
+      .demo-actions a {
+        display: inline-flex;
+        align-items: center;
+        min-height: 38px;
+        padding: 9px 13px;
+        color: #111716;
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        font-weight: 800;
+        text-decoration: none;
+      }
+
+      .demo-actions a.primary-link {
+        color: #111716;
+        background: var(--amber);
+        border-color: var(--amber);
+      }
+
       .setup-guide {
         background:
           linear-gradient(180deg, rgba(255, 255, 255, 0.55), transparent 34%),
@@ -581,6 +617,7 @@
           RepoAtlas
         </div>
         <div class="nav-links">
+          <a href="#demo-video">Demo Video</a>
           <a href="#install-guide">Install Guide</a>
           <a href="#codex-plugin-roadmap">Plugin TODO</a>
           <a href="https://github.com/Harzva/RepoAtlas">GitHub</a>
@@ -596,6 +633,7 @@
         </p>
         <div class="hero-actions">
           <a class="button primary" href="https://github.com/Harzva/RepoAtlas/releases/latest">Download Release</a>
+          <a class="button" href="#demo-video">Watch Demo</a>
           <a class="button" href="#install-guide">Install Guide</a>
           <a class="button" href="#codex-plugin-roadmap">Plugin TODO</a>
           <a class="button" href="https://github.com/Harzva/RepoAtlas#quick-start">Quick Start</a>
@@ -636,6 +674,26 @@
           </article>
         </div>
         <img class="preview" src="./assets/dashboard-preview.svg" alt="RepoAtlas dashboard preview" />
+      </div>
+    </section>
+
+    <section id="demo-video" class="page-section">
+      <div class="inner">
+        <div class="section-title">
+          <h2>Watch RepoAtlas connect GitHub remotes to local context.</h2>
+          <p>
+            The promo video shows the human-facing desktop workflow: account inventory, local repository mapping,
+            sync drift, context tabs, and report-ready repository navigation. Agent-facing MCP and skill tools consume
+            the same inventory for fast focused lookup.
+          </p>
+        </div>
+        <video class="demo-video" src="./assets/repoatlas-promo.mp4" controls preload="metadata">
+          Your browser does not support HTML5 video. Download the MP4 from the link below.
+        </video>
+        <div class="demo-actions">
+          <a class="primary-link" href="./assets/repoatlas-promo.mp4">Open MP4</a>
+          <a href="https://github.com/Harzva/RepoAtlas#agent-tools">Agent Tools</a>
+        </div>
       </div>
     </section>
 
