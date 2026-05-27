@@ -16,6 +16,7 @@
 [Download](https://github.com/Harzva/RepoAtlas/releases/latest) |
 [Website](https://harzva.github.io/RepoAtlas/) |
 [Install Guide](https://harzva.github.io/RepoAtlas/#install-guide) |
+[Demo Video](#demo-video) |
 [Agent Tools](#agent-tools) |
 [Plugin TODO](https://harzva.github.io/RepoAtlas/#codex-plugin-roadmap) |
 [Quick Start](#quick-start) |
@@ -24,6 +25,12 @@
 <img src="assets/dashboard-preview.svg" alt="RepoAtlas dashboard preview" width="920" />
 
 </div>
+
+## Demo Video
+
+<video src="assets/repoatlas-promo.mp4" controls width="920"></video>
+
+[Open the promo video](assets/repoatlas-promo.mp4) if your Markdown viewer does not render inline video.
 
 ## Why RepoAtlas
 
