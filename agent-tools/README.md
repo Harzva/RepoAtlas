@@ -68,15 +68,16 @@ The agent receives small structured results instead of spending tokens reading a
 
 ## Benchmark
 
-Run the included benchmark to compare traditional `gh-repo-cartographer` scanning with focused RepoAtlas MCP lookup:
+Run the included benchmark to compare the bundled traditional `gh-repo-cartographer` scan with focused RepoAtlas MCP lookup:
 
 ```powershell
 python .\agent-tools\benchmarks\repoatlas_benchmark.py `
-  --cartographer "$env:USERPROFILE\.codex\skills\gh-repo-cartographer\scripts\gh_repo_cartographer.py" `
   --scan-root "C:\path\to\your\workspace" `
   --no-fetch `
   --query "Harzva/RepoAtlas"
 ```
+
+The baseline cartographer skill lives in `agent-tools/gh-repo-cartographer/`, so public users do not need a private local Codex skill path to reproduce the experiment.
 
 The benchmark reports:
 

@@ -15,8 +15,11 @@ from pathlib import Path
 from typing import Any
 
 
-DEFAULT_CARTOGRAPHER = Path(
-    Path.home() / ".codex" / "skills" / "gh-repo-cartographer" / "scripts" / "gh_repo_cartographer.py"
+DEFAULT_CARTOGRAPHER = (
+    Path(__file__).resolve().parents[1]
+    / "gh-repo-cartographer"
+    / "scripts"
+    / "gh_repo_cartographer.py"
 )
 DEFAULT_SCAN_ROOT = Path.cwd()
 MCP_SERVER = Path(__file__).resolve().parents[1] / "mcp" / "repoatlas_mcp_server.py"

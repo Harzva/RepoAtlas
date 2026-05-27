@@ -145,7 +145,8 @@ RepoAtlas includes agent-facing tools under `agent-tools/`:
 |---|---|
 | `agent-tools/mcp/repoatlas_mcp_server.py` | Register a stdio MCP server that answers focused repository lookup questions. |
 | `agent-tools/repoatlas-repo-map/` | Install a Codex skill that explains the RepoAtlas repo-map workflow and MCP usage. |
-| `agent-tools/benchmarks/repoatlas_benchmark.py` | Compare traditional `gh-repo-cartographer` scanning against focused MCP lookup time and token footprint. |
+| `agent-tools/gh-repo-cartographer/` | Bundled traditional cartography baseline used by the benchmark. |
+| `agent-tools/benchmarks/repoatlas_benchmark.py` | Compare bundled `gh-repo-cartographer` scanning against focused MCP lookup time and token footprint. |
 | `agent-tools/README.md` | Copy-ready install snippets and example prompts for agent users. |
 
 Register the MCP server in Codex:
@@ -173,7 +174,7 @@ Why MCP instead of only a skill: the skill teaches the workflow, while MCP retur
 
 ### Benchmark
 
-The benchmark below compares a traditional full `gh-repo-cartographer` pass with a focused RepoAtlas MCP lookup over the generated inventory.
+The benchmark below compares the bundled traditional `gh-repo-cartographer` pass with a focused RepoAtlas MCP lookup over the generated inventory.
 
 <img src="assets/agent-benchmark.svg" alt="RepoAtlas MCP lookup benchmark showing 900.8x faster focused lookup and 250.6x smaller response" width="920" />
 
