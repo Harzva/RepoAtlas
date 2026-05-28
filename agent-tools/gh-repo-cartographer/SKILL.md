@@ -13,11 +13,24 @@ Use the bundled script for deterministic inventory work. From this skill or repo
 python scripts\gh_repo_cartographer.py --include-pages --include-releases --output github-repo-map.md --json-output github-repo-map.json
 ```
 
+For a fast inventory from a saved repository address cache, use:
+
+```powershell
+python scripts\gh_repo_cartographer.py --repo-address-file data\github-repo-addresses-harzva-just-agent.txt --no-fetch --output github-repo-map.md --json-output github-repo-map.json
+```
+
+To refresh that cache with matched local folders:
+
+```powershell
+python scripts\gh_repo_cartographer.py --repo-address-file data\github-repo-addresses-harzva-just-agent.txt --no-fetch --scan-root D:\study\code --repo-address-output data\github-repo-addresses-harzva-just-agent.txt
+```
+
 The script:
 
 - Reads managed account aliases from `gh-account-router` when available.
 - Resolves each alias to its canonical GitHub login with `gh api user`.
 - Lists repositories owned by each resolved login, with a REST API fallback when `gh repo list` GraphQL calls time out.
+- Reads repository URLs from `--repo-address-file` text caches; when used without `--account`, this skips live repository enumeration and uses the file as the remote source.
 - Resolves router URL aliases such as `https://github.com/just-agent, saihao` to the canonical GitHub login.
 - Optionally fetches GitHub Pages status/URL and latest release metadata for every repository.
 - Scans local Git repositories under configured roots.
@@ -28,12 +41,15 @@ The script:
 
 - Add scan roots with repeated `--scan-root <path>`. If omitted, the script uses `GH_REPO_CARTOGRAPHER_ROOTS` when set, otherwise the current directory.
 - Add account aliases with repeated `--account <alias>`. If omitted, aliases are discovered from `gh-account-router`.
+- Add repository address caches with repeated `--repo-address-file <txt>`. The checked-in local cache for Harzva and Just-Agent is `data\github-repo-addresses-harzva-just-agent.txt`.
+- Set `GH_REPO_CARTOGRAPHER_REPO_ADDRESS_FILE` to one or more `os.pathsep`-separated txt files when a workflow should default to saved repository URLs.
 - Set `GH_ACCOUNT_ROUTER` when `gh-account-router` is installed somewhere other than `~/.codex/skills/gh-account-router/scripts/gh_account_router.py`.
 - Use `--no-fetch` only when the user explicitly wants a faster offline check; mark results as based on stale local remote refs.
 - Use `--include-pages` when building a Pages matrix or homepage preview index.
 - Use `--include-releases` when building a release hub or project matrix with release badges.
 - Use `--max-depth <n>` to widen or narrow local scanning.
 - Use `--output <file>` for a Markdown report and `--json-output <file>` for downstream README automation.
+- Use `--repo-address-output <file>` to write a URL cache that includes matched local folder paths as `local=<path>` on each repository line.
 
 ## Reporting Guidance
 

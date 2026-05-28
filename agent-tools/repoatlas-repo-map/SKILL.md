@@ -1,54 +1,72 @@
 ---
 name: repoatlas-repo-map
-description: Use RepoAtlas inventories as an agent context layer. Query whether GitHub repositories exist locally, find local checkout paths, identify missing local copies, and register the bundled RepoAtlas MCP server for token-efficient repository lookup.
+description: Generate and query GitHub remote-to-local repository maps without requiring the RepoAtlas desktop app. Bundles gh-repo-cartographer for repository inventory, local checkout matching, compact maps, address-cache refreshes, and optional MCP lookup.
 ---
 
 # RepoAtlas Repo Map
 
-## Use When
+## Purpose
 
-Use this skill when the user asks:
+Use this skill to answer: "Does this GitHub repo exist locally, and where is it?"
 
-- Whether `owner/repo` exists locally.
-- Where a GitHub repository is checked out.
-- Which repositories are missing local clones.
-- Which repositories are dirty, ahead, behind, diverged, or missing upstreams.
-- How to install RepoAtlas as an MCP-backed agent tool.
+This skill is now app-independent:
 
-## Preferred Path
+- It does not require the RepoAtlas desktop executable.
+- It bundles `scripts/gh_repo_cartographer.py` as the default scan engine.
+- It can read a saved repository URL cache with `--repo-address-file`.
+- It can refresh that cache with matched local folders via `--repo-address-output`.
+- It can still consume RepoAtlas exports or compact maps through the MCP server.
 
-Prefer the bundled MCP server for repeated lookup:
+## Quick Start
 
-```toml
-[mcp_servers.repoatlas]
-command = "python"
-args = [
-  "C:\\path\\to\\RepoAtlas\\agent-tools\\mcp\\repoatlas_mcp_server.py",
-  "--inventory",
-  "C:\\path\\to\\repo-atlas.json",
-]
-startup_timeout_sec = 30
+Generate a repository local-address mapping file from live GitHub accounts:
+
+```powershell
+python scripts\run_repoatlas_repo_map.py --scan-root "D:\study\code\0ai\产品" --account Harzva --account saihao --no-fetch --output-dir ".\repoatlas-map"
 ```
 
-Then ask targeted questions such as:
+Generate from a saved address cache instead of live repo enumeration:
 
-```text
-Find local paths for Harzva/RepoAtlas.
-List repos missing local copies.
-Show repos that need attention.
+```powershell
+python scripts\run_repoatlas_repo_map.py --repo-address-file "C:\Users\harzva\.codex\skills\gh-repo-cartographer\data\github-repo-addresses-harzva-just-agent.txt" --scan-root "D:\study\code" --no-fetch --output-dir ".\repoatlas-map"
 ```
+
+Refresh an address cache with local paths:
+
+```powershell
+python scripts\run_repoatlas_repo_map.py --repo-address-file ".\data\github-repo-addresses-harzva-just-agent.txt" --scan-root "D:\study\code" --no-fetch --repo-address-output ".\data\github-repo-addresses-harzva-just-agent.txt"
+```
+
+The wrapper writes:
+
+- `repoatlas-repo-map.md`: human-readable report.
+- `repoatlas-repo-map.raw.json`: full cartographer inventory.
+- `repoatlas-local-address-map.json`: compact remote-to-local mapping for downstream automation.
+
+## MCP Server
+
+Use MCP for repeated lookup after a map is generated:
+
+```powershell
+python scripts\repoatlas_mcp_server.py --map ".\repoatlas-map\repoatlas-local-address-map.json"
+```
+
+Tools exposed:
+
+- `repoatlas_summary`: counts and map metadata.
+- `repoatlas_find_repo`: find a remote repository and return local paths.
+- `repoatlas_missing_local_copies`: list remote repos without local checkouts.
+- `repoatlas_needs_attention`: list dirty, ahead, behind, diverged, or no-upstream repos.
 
 ## Workflow
 
-1. Locate the RepoAtlas inventory JSON.
-   - Use a desktop export such as `repo-atlas.json` when available.
-   - Use `REPO_ATLAS_DATA` when the user points to the live app inventory.
-   - Use a compact generated map only when the user already has one.
-2. If MCP is configured, call `repoatlas_find_repo`, `repoatlas_missing_local_copies`, `repoatlas_needs_attention`, or `repoatlas_summary`.
-3. If MCP is not configured, run `agent-tools/mcp/repoatlas_mcp_server.py` directly with a JSON-RPC smoke payload or inspect the JSON with a structured parser.
-4. Report only focused results. Do not paste the full inventory unless the user explicitly asks for it.
+1. Use `run_repoatlas_repo_map.py` to generate or refresh a compact map.
+2. Prefer `--repo-address-file` when a saved remote URL cache already exists.
+3. Use `--no-fetch` for fast local-only checks; omit it only when fresh ahead/behind status is required.
+4. Query the compact map with `repoatlas_mcp_server.py` or inspect the JSON with a structured parser.
+5. Report focused results instead of pasting the full inventory.
 
-## Reporting Contract
+## Output Contract
 
 For a repository lookup, report:
 
@@ -65,7 +83,3 @@ For an inventory summary, report:
 - local match count
 - missing local count
 - attention count
-
-## Notes
-
-RepoAtlas desktop creates and exports repository inventory. The MCP server consumes that inventory so agents can answer small questions without loading large Markdown or JSON reports into context.

@@ -3,7 +3,7 @@
 RepoAtlas can be used by agents in two complementary ways:
 
 - **MCP server**: fast structured lookups from a RepoAtlas inventory JSON file.
-- **Codex skill**: repeatable workflow for generating, refreshing, and installing the MCP-backed repo map.
+- **Codex skill**: app-independent workflow for generating, refreshing, and installing the MCP-backed repo map.
 
 Use MCP when an agent needs a small answer such as "where is `owner/repo` locally?". Use the skill when an agent needs the operating procedure, install instructions, or a map refresh workflow.
 
@@ -50,6 +50,30 @@ Use $repoatlas-repo-map to query whether Harzva/RepoAtlas exists locally.
 ```
 
 The skill explains when to refresh the map, when to call the MCP tool, and how to report results without loading the full inventory into context.
+
+The skill bundles `scripts\gh_repo_cartographer.py`, so it does not require the RepoAtlas desktop executable to scan repositories. The desktop app is one possible inventory producer, not a runtime dependency for repository mapping.
+
+Generate a no-app map directly from GitHub accounts:
+
+```powershell
+python .\agent-tools\repoatlas-repo-map\scripts\run_repoatlas_repo_map.py `
+  --scan-root "C:\path\to\workspace" `
+  --account Harzva `
+  --account saihao `
+  --no-fetch `
+  --output-dir ".\repoatlas-map"
+```
+
+Generate or refresh a map from a saved repository URL cache:
+
+```powershell
+python .\agent-tools\repoatlas-repo-map\scripts\run_repoatlas_repo_map.py `
+  --repo-address-file ".\repo-addresses.txt" `
+  --scan-root "C:\path\to\workspace" `
+  --no-fetch `
+  --repo-address-output ".\repo-addresses.txt" `
+  --output-dir ".\repoatlas-map"
+```
 
 ## Recommended Agent Workflow
 
